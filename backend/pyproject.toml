@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    "*/migrations/*",
+    "staticfiles/*",
+    "media/*",
+    "venv/*",
+    "../venv/*",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # Line too long (handled by format)
+    "RUF012", # Mutable class attributes in Django models
+    "F403",  # Star imports in Django settings
+    "F405",  # Undefined from star imports in Django settings
+    "F841",  # Local variable assigned but unused
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

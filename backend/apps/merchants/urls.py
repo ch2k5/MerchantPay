@@ -1,0 +1,39 @@
+from django.urls import path
+
+from apps.merchants.views import (
+    MerchantAlertEvaluateView,
+    MerchantAlertListView,
+    MerchantAlertReadAllView,
+    MerchantAlertReadView,
+    MerchantAnalyticsChannelsView,
+    MerchantAnalyticsHeatmapView,
+    MerchantAnalyticsTrendsView,
+    MerchantAnalyticsVolumeView,
+    MerchantCollectionsView,
+    MerchantDashboardView,
+    MerchantProfileView,
+    MerchantSimulatorBaselineView,
+    MerchantSimulatorRunView,
+    MerchantTransactionDetailView,
+    MerchantTransactionExportView,
+    MerchantTransactionListView,
+)
+
+urlpatterns = [
+    path("profile/", MerchantProfileView.as_view(), name="merchant-profile"),
+    path("dashboard/", MerchantDashboardView.as_view(), name="merchant-dashboard"),
+    path("transactions/", MerchantTransactionListView.as_view(), name="merchant-transactions-list"),
+    path("transactions/<uuid:pk>/", MerchantTransactionDetailView.as_view(), name="merchant-transactions-detail"),
+    path("transactions/export/", MerchantTransactionExportView.as_view(), name="merchant-transactions-export"),
+    path("collections/", MerchantCollectionsView.as_view(), name="merchant-collections"),
+    path("analytics/trends/", MerchantAnalyticsTrendsView.as_view(), name="merchant-analytics-trends"),
+    path("analytics/heatmap/", MerchantAnalyticsHeatmapView.as_view(), name="merchant-analytics-heatmap"),
+    path("analytics/channels/", MerchantAnalyticsChannelsView.as_view(), name="merchant-analytics-channels"),
+    path("analytics/volume/", MerchantAnalyticsVolumeView.as_view(), name="merchant-analytics-volume"),
+    path("alerts/", MerchantAlertListView.as_view(), name="merchant-alerts-list"),
+    path("alerts/<uuid:pk>/read/", MerchantAlertReadView.as_view(), name="merchant-alerts-read"),
+    path("alerts/read-all/", MerchantAlertReadAllView.as_view(), name="merchant-alerts-read-all"),
+    path("alerts/evaluate/", MerchantAlertEvaluateView.as_view(), name="merchant-alerts-evaluate"),
+    path("simulator/baseline/", MerchantSimulatorBaselineView.as_view(), name="merchant-simulator-baseline"),
+    path("simulator/", MerchantSimulatorRunView.as_view(), name="merchant-simulator-run"),
+]
