@@ -1,0 +1,31 @@
+name: merchant_pay
+description: "MERCHANT PAY - Couche d'intelligence commerçante sur l'activité des paiements électroniques (CIB et EDAHABIA)"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: any
+  go_router: any
+  dio: any
+  flutter_secure_storage: any
+  shared_preferences: any
+  fl_chart: any
+  intl: any
+  shimmer: any
+  cupertino_icons: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: any
+
+flutter:
+  uses-material-design: true
