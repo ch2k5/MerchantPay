@@ -17,9 +17,9 @@ class AdminAnalyticsScreen extends ConsumerStatefulWidget {
 
 class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedPreset = '30d';
-  String _selectedGranularity = 'day';
-  String _selectedCategory = 'ALL';
+  String _selectedPreset = 'all';
+  final String _selectedGranularity = 'day';
+  final String _selectedCategory = 'ALL';
   String _selectedChannel = 'ALL';
   bool _isLoading = true;
   String? _error;
@@ -200,8 +200,10 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                           label: "Période",
                           value: _selectedPreset,
                           items: const [
+                            DropdownMenuItem(value: 'all', child: Text('Tout le dataset')),
                             DropdownMenuItem(value: '7d', child: Text('7 derniers jours')),
                             DropdownMenuItem(value: '30d', child: Text('30 derniers jours (Mois)')),
+                            DropdownMenuItem(value: '6m', child: Text('6 derniers mois')),
                             DropdownMenuItem(value: '90d', child: Text('90 derniers jours (Trimestre)')),
                             DropdownMenuItem(value: 'ytd', child: Text('Année en cours (YTD)')),
                           ],
@@ -279,6 +281,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
           _chartCard(
             title: "Tendance Globale des Flux Monétiques Interbancaires",
             subtitle: "Évolution temporelle du volume net (DZD) traité sur les serveurs SATIM",
+            guide: "Ce graphique retrace le volume financier global (DZD) traité par le switch SATIM jour par jour. La courbe bleue et son aire ombrée visualisent la cadence d'encaissement globale de l'écosystème monétique national.",
             child: SizedBox(
               height: 280,
               child: LineChart(
@@ -349,6 +352,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
           _chartCard(
             title: "Matrice d'Intensité Temporelle Nationale (7×24)",
             subtitle: "Charge transactionnelle par heure et jour de la semaine sur le switch monétique",
+            guide: "Répartition thermique de l'ensemble des transactions nationales sur 168 heures hebdomadaires. L'intensité du bleu signale les périodes de charge réseau maximale pour le switch national, permettant de planifier les interventions techniques en heures creuses.",
             child: _buildHeatmapGrid(matrix),
           ),
         ],
@@ -375,6 +379,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Classement des Commerçants par Chiffre d'Affaires Net (DZD)",
                   subtitle: "Top 7 des volumes d'encaissement les plus significatifs du réseau",
+                  guide: "Classement horizontal des commerçants générant les volumes les plus importants. La barre de progression indique la part relative de chaque commerçant par rapport au premier du classement.",
                   child: Column(
                     children: [
                       for (int i = 0; i < min(7, topMerchants.length); i++) ...[
@@ -399,6 +404,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Volumes par Secteur d'Activité",
                   subtitle: "Part relative des catégories commerciales",
+                  guide: "Décomposition du chiffre d'affaires monétique par filière marchande (Alimentation, Voyage, Télécoms, Santé...). Permet d'observer la pénétration de la carte bancaire selon les secteurs économiques.",
                   child: Column(
                     children: [
                       for (final cat in categories.take(5)) ...[
@@ -451,6 +457,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Histogramme de Fréquence des Montants (DA)",
                   subtitle: "Densité probabiliste des montants réglés par carte CIB et EDAHABIA",
+                  guide: "Fréquence statistique des règlements par tranche de valeur (DA). Permet d'observer la typologie des dépenses des porteurs de cartes en Algérie et la proportion des paiements de proximité versus gros achats.",
                   child: SizedBox(
                     height: 250,
                     child: BarChart(
@@ -503,6 +510,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Tranches de Montants Usuelles",
                   subtitle: "Proportion des paniers d'achat",
+                  guide: "Répartition des transactions par catégories de paniers : petits achats (< 1 000 DA), transactions courantes (1 000 à 5 000 DA), achats moyens (5 000 à 20 000 DA) et montants majeurs (> 20 000 DA).",
                   child: Column(
                     children: [
                       for (final b in brackets) ...[
@@ -535,6 +543,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
           _chartCard(
             title: "Boîte à Moustaches (Box Plot) & Détection des Valeurs Atypiques",
             subtitle: "Repérage des transactions excédant 1.5× l'intervalle interquartile (IQR)",
+            guide: "Statistique de Tukey appliquée à l'ensemble du réseau : la ligne médiane sépare la moitié des montants inférieurs et supérieurs. La boîte couvre 50 % des transactions centrales (Q1 à Q3). Les montants au-delà des moustaches représentent des transactions exceptionnelles à examiner.",
             child: Column(
               children: [
                 _buildBoxPlotDiagram(boxplot),
@@ -578,6 +587,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Distribution des Scores de Risque Fraude (/100)",
                   subtitle: "Ventilation des signalements selon la sévérité déterminée par le moteur heuristique",
+                  guide: "Classement des opérations surveillées selon le niveau d'alerte : Faible (vert, 0-40), Modéré (jaune, 40-70) et Élevé (rouge, > 70). Permet aux analystes de prioriser les dossiers nécessitant des investigations urgentes.",
                   child: Column(
                     children: [
                       for (final b in scoreDistribution) ...[
@@ -620,6 +630,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                 child: _chartCard(
                   title: "Distribution de la Vélocité Transactionnelle",
                   subtitle: "Analyse des rafales de transactions",
+                  guide: "Indicateur de surveillance détectant les successions anormalement rapides de paiements sur un même terminal ou par une même carte, signe précurseur de tests de cartes compromises.",
                   child: Column(
                     children: [
                       for (final v in velocityStats) ...[
@@ -647,6 +658,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
           _chartCard(
             title: "Nuage de Corrélation : Score de Risque vs Montant de Transaction",
             subtitle: "Isolement visuel des anomalies à fort impact financier",
+            guide: "Croisement entre le score de risque (axe horizontal, de 0 à 100) et le montant de la transaction (axe vertical, en DA). Les points rouges situés en haut à droite isolent les transactions les plus critiques cumulant un montant élevé et une forte suspicion.",
             child: SizedBox(
               height: 280,
               child: ScatterChart(
@@ -851,7 +863,12 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
     );
   }
 
-  Widget _chartCard({required String title, required String subtitle, required Widget child}) {
+  Widget _chartCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+    String? guide,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -865,7 +882,31 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
           Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
           const SizedBox(height: 2),
           Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-          const SizedBox(height: 20),
+          if (guide != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      guide,
+                      style: const TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
           child,
         ],
       ),

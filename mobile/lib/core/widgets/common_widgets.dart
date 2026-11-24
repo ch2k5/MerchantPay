@@ -12,11 +12,12 @@ class PeriodSelectorWidget extends StatelessWidget {
   });
 
   static const options = [
-    {'key': 'today', 'label': "Aujourd'hui"},
-    {'key': '7d', 'label': '7 jours'},
+    {'key': 'all', 'label': 'Tout (Dataset)'},
     {'key': '30d', 'label': '30 jours'},
+    {'key': '7d', 'label': '7 jours'},
     {'key': 'month', 'label': 'Ce mois'},
     {'key': 'prev_month', 'label': 'Mois précédent'},
+    {'key': '6m', 'label': '6 mois'},
   ];
 
   @override

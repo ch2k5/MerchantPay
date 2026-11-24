@@ -16,7 +16,7 @@ class MerchantAnalyticsScreen extends ConsumerStatefulWidget {
 
 class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedPreset = '30d';
+  String _selectedPreset = 'all';
   String _granularity = 'daily';
   bool _isLoading = true;
   String? _error;
@@ -125,8 +125,10 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                             value: _selectedPreset,
                             underline: const SizedBox(),
                             items: const [
+                              DropdownMenuItem(value: 'all', child: Text('Tout le dataset')),
                               DropdownMenuItem(value: '7d', child: Text('7 derniers jours')),
                               DropdownMenuItem(value: '30d', child: Text('30 derniers jours (Mois)')),
+                              DropdownMenuItem(value: '6m', child: Text('6 derniers mois')),
                               DropdownMenuItem(value: '90d', child: Text('90 derniers jours (Trimestre)')),
                               DropdownMenuItem(value: 'ytd', child: Text('Année en cours (YTD)')),
                             ],
@@ -196,6 +198,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           _chartCard(
             title: "Courbe d'Évolution du Chiffre d'Affaires Net (DZD)",
             subtitle: "Progression journalière avec lissage et identification des points hauts",
+            guide: "Ce graphique retrace l'évolution temporelle de vos encaissements nets en dinars algériens. L'aire bleutée montre l'accumulation du volume d'affaires et les sommets mettent en évidence vos journées de plus forte affluence commerciale.",
             action: SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'daily', label: Text('Jour')),
@@ -284,6 +287,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                 child: _chartCard(
                   title: "Comparaison des Réseaux d'Acquisition (CIB vs EDAHABIA)",
                   subtitle: "Volume d'affaires capté et taux de succès par carte bancaire",
+                  guide: "Ce graphique à barres compare les montants encaissés via la carte bancaire CIB (en bleu) et la carte postale EDAHABIA (en vert). Il vous indique quel réseau bancaire est privilégié par vos clients.",
                   child: SizedBox(
                     height: 220,
                     child: BarChart(
@@ -335,6 +339,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                 child: _chartCard(
                   title: "Indicateurs d'Acceptation",
                   subtitle: "Efficacité technique du réseau monétique",
+                  guide: "Synthèse de performance de votre point d'encaissement : le taux de conversion mesure la part des ventes abouties et le panier moyen reflète la dépense typique par transaction.",
                   child: Column(
                     children: [
                       _statTile("Volume total encaissé", Formatters.formatDzd(kpis['net_revenue'] ?? kpis['accepted_amount'])),
@@ -372,6 +377,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           _chartCard(
             title: "Histogramme de Fréquence des Montants (DA)",
             subtitle: "Distribution statistique du montant des règlements traités sur la période",
+            guide: "Cet histogramme regroupe vos transactions par tranches de montants en dinars. La hauteur de chaque colonne indique le nombre d'achats effectués dans cette tranche, révélant la gamme de prix la plus courante.",
             child: SizedBox(
               height: 260,
               child: BarChart(
@@ -438,6 +444,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           _chartCard(
             title: "Analyse de Dispersion & Boîte à Moustaches (Box Plot)",
             subtitle: "Médiane, quartiles (Q1, Q3) et détection des valeurs extrêmes/atypiques",
+            guide: "Statistique de Tukey : la barre centrale indique la Médiane (50 % des transactions sont en dessous). Le rectangle bleu regroupe le cœur de votre activité (50 % des ventes, entre Q1 et Q3). Les moustaches horizontales délimitent la dispersion normale et isolent les montants exceptionnels.",
             child: Column(
               children: [
                 _buildBoxPlotDiagram(boxplot),
@@ -477,6 +484,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           _chartCard(
             title: "Nuage de Points : Montant des Opérations Récentes",
             subtitle: "Repérage instantané des montants aberrants, rejets techniques et corrélations",
+            guide: "Chaque point représente une transaction individuelle positionnée selon son ordre chronologique et son montant en DA. Vert = Acceptée, Rouge = Rejetée, Orange = Remboursée, Gris = Annulée. Permet d'isoler en un clin d'œil les montants anormaux ou les rejets groupés.",
             child: SizedBox(
               height: 320,
               child: ScatterChart(
@@ -579,6 +587,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           _chartCard(
             title: "Matrice d'Intensité Monétique (7 jours × 24 heures)",
             subtitle: "Densité du trafic électronique pour ajuster vos créneaux et effectifs",
+            guide: "Carte thermique des 168 heures de la semaine (7 jours × 24h). Plus la couleur bleue est soutenue, plus le nombre de paiements enregistrés à cette heure précise est important. Idéal pour optimiser vos horaires d'ouverture et vos effectifs.",
             child: Column(
               children: [
                 // Hours header
@@ -700,7 +709,13 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
     );
   }
 
-  Widget _chartCard({required String title, required String subtitle, required Widget child, Widget? action}) {
+  Widget _chartCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+    Widget? action,
+    String? guide,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -714,18 +729,44 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                  ],
+                ),
               ),
-              if (action != null) action,
+              ?action,
             ],
           ),
-          const SizedBox(height: 20),
+          if (guide != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      guide,
+                      style: const TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
           child,
         ],
       ),

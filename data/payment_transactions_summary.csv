@@ -1,0 +1,16 @@
+Payment Transactions Summary Dashboard (DZD)
+1. Breakdown by Transaction Status
+Transaction Status,Transaction Count,% of Total,Total Amount (DA),Average Amount (DA)
+Accepted,,,,
+Declined,,,,
+Refunded,,,,
+Cancelled,,,,
+Total,,,,
+2. Breakdown by Payment Channel
+Payment Channel,Transaction Count,% of Total,Total Amount (DA)
+E-commerce (CIB / Edahabia),,,
+TPE / POS Terminal,,,
+Mobile App,,,
+Contactless / NFC,,,
+Bank Transfer / Virement,,,
+Total,,,

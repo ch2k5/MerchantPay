@@ -394,7 +394,29 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
           const Text('Projection Temporelle (Actuel vs Simulé)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
           const SizedBox(height: 4),
           const Text('Comparaison de la trajectoire d\'encaissement point par point', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Guide de lecture : Ce graphique compare la trajectoire de votre chiffre d'affaires réel de référence (courbe grise en pointillés) avec la simulation calculée selon vos variations de volume et de panier moyen (courbe verte continue).",
+                    style: TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             height: 240,
             child: projections.isEmpty

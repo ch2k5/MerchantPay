@@ -27,26 +27,19 @@ from apps.risk.services import scan_all_merchants_risk
 from apps.transactions.models import Transaction
 
 
+from django.core.management import call_command
+
+
 class Command(BaseCommand):
-    help = "Seed deterministic demo dataset (~60k transactions, 12 merchants, injected scenarios, CSV export)"
+    help = "Seed deterministic demo dataset (loads official FINOVIA dataset: 150 transactions, 30 merchants)"
 
     def add_arguments(self, parser):
         parser.add_argument("--seed", type=int, default=42, help="Random seed for deterministic generation")
         parser.add_argument("--fast", action="store_true", help="Generate a smaller set (~6k) for fast testing")
 
     def handle(self, *args, **options):
-        seed_val = options["seed"]
-        random.seed(seed_val)
-        is_fast = options["fast"]
-        self.stdout.write(self.style.NOTICE(f"Initialisation du seeding (Seed: {seed_val}, Fast: {is_fast})..."))
-
-        now = timezone.now().astimezone(ALGIERS_TZ)
-        today = now.date()
-
-        # Clear existing data safely
-        Transaction.objects.all().delete()
-        Merchant.objects.all().delete()
-        User.objects.all().delete()
+        self.stdout.write(self.style.NOTICE("Chargement du jeu de données officiel FINOVIA × ENSM × SATIM..."))
+        call_command("load_official_dataset")
 
         # 1. Create Admins
         super_admin = User.objects.create_superuser(

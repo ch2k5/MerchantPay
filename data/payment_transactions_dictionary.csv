@@ -1,0 +1,8 @@
+Column Name,French Label,Description & Possible Values
+transaction_id,Identifiant de transaction,"Unique alphanumeric identifier assigned to each payment transaction (e.g., TXN-20260001)."
+merchant_id,Identifiant du commerçant,"Unique identifier representing the business or vendor receiving the payment (e.g., MER-4821)."
+transaction_date,Date de transaction,Exact date and timestamp when the transaction was initiated (YYYY-MM-DD HH:MM).
+amount,Montant de la transaction,"Monetary value of the transaction in Algerian Dinars (DZD / DA), ranging from small retail purchases (~500 DA) to larger orders (~600,000 DA)."
+payment_channel,Canal de paiement,"Method or medium used to execute the payment: E-commerce (CIB / Edahabia), TPE / POS Terminal, Mobile App, Contactless / NFC, or Bank Transfer / Virement."
+transaction_status,Statut de la transaction,"Final processing state of the payment: Accepted (approved & settled), Declined (rejected by bank/gateway), Refunded (reversed back to customer), or Cancelled (voided prior to settlement)."
+merchant_category,Catégorie d'activité,"Industry sector of the merchant (e.g., Retail & Apparel, Food & Dining, Electronics & Tech, Travel & Hospitality)."

@@ -52,6 +52,21 @@ def resolve_period_range(
         curr_end_date = today
         prev_start_date = today - timedelta(days=1)
         prev_end_date = today - timedelta(days=1)
+    elif preset in ["all", "all_time", "global", "total"]:
+        curr_start_date = datetime(2026, 1, 1).date()
+        curr_end_date = datetime(2026, 12, 31).date()
+        prev_start_date = datetime(2025, 1, 1).date()
+        prev_end_date = datetime(2025, 12, 31).date()
+    elif preset in ["6m", "180d"]:
+        curr_start_date = today - timedelta(days=180)
+        curr_end_date = today
+        prev_start_date = curr_start_date - timedelta(days=180)
+        prev_end_date = curr_start_date - timedelta(days=1)
+    elif preset in ["90d", "3m"]:
+        curr_start_date = today - timedelta(days=90)
+        curr_end_date = today
+        prev_start_date = curr_start_date - timedelta(days=90)
+        prev_end_date = curr_start_date - timedelta(days=1)
     elif preset == "7d":
         curr_start_date = today - timedelta(days=6)
         curr_end_date = today

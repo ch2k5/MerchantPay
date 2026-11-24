@@ -13,7 +13,7 @@ class MerchantCollectionsScreen extends ConsumerStatefulWidget {
 }
 
 class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsScreen> {
-  String _selectedPreset = '30d';
+  String _selectedPreset = 'all';
   String _granularity = 'day';
   bool _isLoading = true;
   String? _error;

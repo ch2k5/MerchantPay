@@ -16,7 +16,7 @@ class MerchantDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScreen> {
-  String _selectedPreset = '30d';
+  String _selectedPreset = 'all';
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _data;
@@ -264,7 +264,29 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Guide de lecture : La courbe bleue continue retrace vos encaissements journaliers réels. La ligne en pointillés violets rappelle la période précédente équivalente pour évaluer votre progression commerciale.",
+                      style: TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               height: 220,
               child: currSpots.isEmpty
@@ -356,7 +378,29 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
           children: [
             const Text("Répartition par Carte", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const Text("Part du volume accepté", style: TextStyle(fontSize: 12, color: AppColors.slate)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Guide de lecture : Diagramme circulaire comparant les parts de volume entre les cartes bancaires interbancaires CIB et les cartes postales EDAHABIA.",
+                      style: TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               height: 180,
               child: PieChart(

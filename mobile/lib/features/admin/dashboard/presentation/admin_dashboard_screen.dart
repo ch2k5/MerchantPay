@@ -16,7 +16,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
-  String _selectedPreset = '30d';
+  String _selectedPreset = 'all';
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _data;
@@ -228,7 +228,29 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Guide de lecture : Diagramme circulaire représentant la part des dossiers de risque selon leur sévérité : Faible en vert, Modéré en jaune/orange, Élevé en rouge. Permet d'évaluer la santé sécuritaire globale du réseau.",
+                    style: TextStyle(fontSize: 11, color: AppColors.slate, height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
               // Risk Donut
