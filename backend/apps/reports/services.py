@@ -171,7 +171,6 @@ def export_merchants_report_csv() -> HttpResponse:
             "Terminaux",
             "Registre de Commerce (RC)",
             "Email",
-            "Date d'inscription",
         ]
     )
 
@@ -185,8 +184,103 @@ def export_merchants_report_csv() -> HttpResponse:
                 m.get_status_display(),
                 m.terminal_count,
                 m.registration_number,
-                m.email or m.owner.email,
-                m.created_at.strftime("%d/%m/%Y"),
+                m.email or (m.owner.email if m.owner else ""),
+            ]
+        )
+
+    return response
+
+
+def export_merchants_report_pdf() -> HttpResponse:
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        leftMargin=30,
+        rightMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+    styles = getSampleStyleSheet()
+
+    elements = [
+        Paragraph("<b>SATIM × GIE Monétique</b> — Répertoire Officiel des Commerçants Adhérents", styles["Heading1"]),
+        Paragraph(
+            f"Document édité le {timezone.now().strftime('%d/%m/%Y à %H:%M')} | Réseau national d'acceptation monétique CIB & EDAHABIA",
+            ParagraphStyle("Subtitle", parent=styles["Normal"], textColor=colors.HexColor("#5E6368"), fontSize=9),
+        ),
+        Spacer(1, 15),
+    ]
+
+    merchants = Merchant.objects.all().order_by("merchant_code")
+    headers = ["Code", "Raison Sociale", "Catégorie", "Wilaya", "Statut", "TPE", "RC", "Contact"]
+    rows = [headers]
+    for m in merchants:
+        contact = m.email or (m.owner.email if m.owner else "")
+        rows.append(
+            [
+                m.merchant_code,
+                m.business_name[:24],
+                m.get_merchant_category_display() if hasattr(m, 'get_merchant_category_display') else m.merchant_category,
+                m.wilaya,
+                m.get_status_display(),
+                str(m.terminal_count),
+                m.registration_number[:18],
+                contact[:22],
+            ]
+        )
+
+    table = Table(rows, colWidths=[75, 150, 110, 85, 75, 45, 95, 115])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E53A2F")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E6E8EB")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9F9F9")]),
+                ("PADDING", (0, 0), (-1, -1), 5),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="repertoire_commercants_satim.pdf"'
+    return response
+
+
+def export_risk_report_csv(date_from, date_to) -> HttpResponse:
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="rapport_risques_satim.csv"'
+    response.write("\ufeff")
+
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(
+        [
+            "Score",
+            "Niveau",
+            "Commerçant",
+            "Statut",
+            "Règles déclenchées",
+            "Date de détection",
+        ]
+    )
+
+    flags = RiskFlag.objects.filter(detected_at__range=(date_from, date_to)).order_by("-risk_score")[:500]
+    for f in flags:
+        rule_labels = ", ".join(r.get("label_fr", r.get("code", "")) for r in f.triggered_rules[:3])
+        writer.writerow(
+            [
+                f.risk_score,
+                f.risk_level,
+                f.merchant.business_name,
+                f.get_status_display(),
+                rule_labels,
+                f.detected_at.strftime("%d/%m/%Y %H:%M"),
             ]
         )
 

@@ -21,6 +21,7 @@ from apps.analytics.services import (
     compute_trends,
 )
 from apps.audit.models import AuditLog
+from apps.core.renderers import IgnoreClientContentNegotiation, PassthroughRenderer
 from apps.audit.services import record_audit
 from apps.core.dates import resolve_period_range
 from apps.core.enums import (
@@ -42,8 +43,10 @@ from apps.core.permissions import (
 from apps.merchants.models import Merchant
 from apps.reports.services import (
     export_merchants_report_csv,
+    export_merchants_report_pdf,
     export_platform_report_csv,
     export_platform_report_pdf,
+    export_risk_report_csv,
     export_risk_report_pdf,
 )
 from apps.risk.models import InvestigationNote, RiskFlag
@@ -635,14 +638,17 @@ class AdminReportMerchantsView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
+        fmt = request.query_params.get("format", "csv").lower()
         record_audit(
             request=request,
             actor=request.user,
             action=AuditAction.EXPORT_GENERATED,
             target_type="Report",
             target_id="merchants_directory",
-            after={"format": "csv"},
+            after={"format": fmt},
         )
+        if fmt == "pdf":
+            return export_merchants_report_pdf()
         return export_merchants_report_csv()
 
 
@@ -650,6 +656,7 @@ class AdminReportRiskView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
+        fmt = request.query_params.get("format", "pdf").lower()
         c_from, c_to, _, _ = resolve_period_range(
             preset=request.query_params.get("period", "30d"),
             date_from_str=request.query_params.get("date_from"),
@@ -661,9 +668,77 @@ class AdminReportRiskView(APIView):
             action=AuditAction.EXPORT_GENERATED,
             target_type="Report",
             target_id="risk_flags",
-            after={"format": "pdf"},
+            after={"format": fmt},
         )
+        if fmt == "csv":
+            return export_risk_report_csv(c_from, c_to)
         return export_risk_report_pdf(c_from, c_to)
+
+
+class AdminReportGenerateView(APIView):
+    """
+    Unified endpoint for Admin Reports generation supporting both POST and GET.
+    Used by AdminReportsScreen in Flutter.
+    """
+    permission_classes = [IsAdmin]
+    renderer_classes = [PassthroughRenderer]
+    content_negotiation_class = IgnoreClientContentNegotiation
+
+    def _generate(self, request, report_type, fmt, preset, date_from_str, date_to_str):
+        c_from, c_to, _, _ = resolve_period_range(
+            preset=preset,
+            date_from_str=date_from_str,
+            date_to_str=date_to_str,
+        )
+        record_audit(
+            request=request,
+            actor=request.user,
+            action=AuditAction.EXPORT_GENERATED,
+            target_type="Report",
+            target_id=report_type,
+            after={"format": fmt, "preset": preset},
+        )
+
+        if report_type == "RISK_AUDIT" or report_type == "risk":
+            if fmt == "csv":
+                return export_risk_report_csv(c_from, c_to)
+            return export_risk_report_pdf(c_from, c_to)
+        elif report_type == "MERCHANT_ACTIVITY" or report_type == "merchants":
+            if fmt == "pdf":
+                return export_merchants_report_pdf()
+            return export_merchants_report_csv()
+        else:
+            # Default MONTHLY_VOLUME / platform report
+            if fmt == "pdf":
+                return export_platform_report_pdf(c_from, c_to)
+            return export_platform_report_csv(c_from, c_to)
+
+    def get(self, request):
+        report_type = request.query_params.get("report_type", "MONTHLY_VOLUME")
+        fmt = request.query_params.get("format", "pdf").lower()
+        preset = request.query_params.get("preset") or request.query_params.get("period", "30d")
+        return self._generate(
+            request,
+            report_type,
+            fmt,
+            preset,
+            request.query_params.get("date_from"),
+            request.query_params.get("date_to"),
+        )
+
+    def post(self, request):
+        data = request.data or {}
+        report_type = data.get("report_type", "MONTHLY_VOLUME")
+        fmt = str(data.get("format", "pdf")).lower()
+        preset = data.get("preset") or data.get("period", "30d")
+        return self._generate(
+            request,
+            report_type,
+            fmt,
+            preset,
+            data.get("date_from"),
+            data.get("date_to"),
+        )
 
 
 # 6. Audit Logs (SUPER_ADMIN only)

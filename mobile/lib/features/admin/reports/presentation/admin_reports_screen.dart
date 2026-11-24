@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/file_saver.dart';
 
 class AdminReportsScreen extends ConsumerStatefulWidget {
   const AdminReportsScreen({super.key});
@@ -43,36 +45,60 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     });
     try {
       final client = ref.read(apiClientProvider);
-      final res = await client.post(
+      final res = await client.dio.get<List<int>>(
         '/admin/reports/generate/',
-        data: {
+        queryParameters: {
           'report_type': _selectedReport,
           'format': _selectedFormat,
           'preset': _selectedPreset,
         },
+        options: Options(
+          responseType: ResponseType.bytes,
+        ),
       );
-      if (res.statusCode == 200 && mounted) {
-        final downloadUrl = res.data['download_url'] ?? res.data['file_url'];
+      if (res.statusCode == 200 && res.data != null && mounted) {
+        final bytes = res.data!;
+        final mimeType = _selectedFormat == 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+        final extension = _selectedFormat == 'pdf' ? 'pdf' : 'csv';
+        final filename = 'rapport_satim_${_selectedReport.toLowerCase()}.$extension';
+
+        saveFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType: mimeType,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.success,
-            content: Text("Rapport généré avec succès (${_selectedFormat.toUpperCase()}). Téléchargement prêt."),
-            action: downloadUrl != null
-                ? SnackBarAction(label: 'Ouvrir', textColor: Colors.white, onPressed: () {})
-                : null,
+            content: Text(
+              "Rapport ${_selectedFormat.toUpperCase()} généré avec succès ! Téléchargement lancé ($filename).",
+            ),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.danger,
+            content: Text("Échec du téléchargement du rapport."),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Échec de la génération du rapport.")),
+          SnackBar(
+            backgroundColor: AppColors.danger,
+            content: Text("Erreur lors de la génération du rapport : $e"),
+          ),
         );
       }
     } finally {
-      setState(() {
-        _isGenerating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
     }
   }
 
@@ -149,7 +175,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                           const Text('Période d\'analyse', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
-                            value: _selectedPreset,
+                            initialValue: _selectedPreset,
                             decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
                             items: const [
                               DropdownMenuItem(value: '7d', child: Text('7 derniers jours')),
@@ -172,7 +198,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                           const Text('Format du livrable', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
-                            value: _selectedFormat,
+                            initialValue: _selectedFormat,
                             decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
                             items: const [
                               DropdownMenuItem(value: 'pdf', child: Text('Document PDF Officiel')),

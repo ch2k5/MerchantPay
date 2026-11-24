@@ -13,6 +13,7 @@ from apps.merchants.views import (
     MerchantCollectionsView,
     MerchantDashboardView,
     MerchantProfileView,
+    MerchantReportGenerateView,
     MerchantSimulatorBaselineView,
     MerchantSimulatorRunView,
     MerchantTransactionDetailView,
@@ -36,6 +37,7 @@ urlpatterns = [
     path("alerts/<uuid:pk>/read/", MerchantAlertReadView.as_view(), name="merchant-alerts-read"),
     path("alerts/read-all/", MerchantAlertReadAllView.as_view(), name="merchant-alerts-read-all"),
     path("alerts/evaluate/", MerchantAlertEvaluateView.as_view(), name="merchant-alerts-evaluate"),
+    path("reports/generate/", MerchantReportGenerateView.as_view(), name="merchant-reports-generate"),
     path("simulator/baseline/", MerchantSimulatorBaselineView.as_view(), name="merchant-simulator-baseline"),
     path("simulator/", MerchantSimulatorRunView.as_view(), name="merchant-simulator-run"),
 ]

@@ -12,6 +12,7 @@ import '../../features/analytics/presentation/merchant_collections_screen.dart';
 import '../../features/analytics/presentation/merchant_analytics_screen.dart';
 import '../../features/alerts/presentation/merchant_alerts_screen.dart';
 import '../../features/simulator/presentation/merchant_simulator_screen.dart';
+import '../../features/reports/presentation/merchant_reports_screen.dart';
 import '../../features/profile/presentation/merchant_profile_screen.dart';
 import '../../features/admin/dashboard/presentation/admin_dashboard_screen.dart';
 import '../../features/admin/analytics/presentation/admin_analytics_screen.dart';
@@ -103,6 +104,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/m/simulator',
             builder: (context, state) => const MerchantSimulatorScreen(),
+          ),
+          GoRoute(
+            path: '/m/reports',
+            builder: (context, state) => const MerchantReportsScreen(),
           ),
           GoRoute(
             path: '/m/profile',

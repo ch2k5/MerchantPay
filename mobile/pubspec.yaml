@@ -21,6 +21,7 @@ dependencies:
   intl: any
   shimmer: any
   cupertino_icons: any
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

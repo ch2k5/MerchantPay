@@ -66,6 +66,12 @@ class ResponsiveShell extends ConsumerWidget {
       path: '/m/simulator',
     ),
     NavItem(
+      label: 'Rapports',
+      icon: Icons.summarize_outlined,
+      selectedIcon: Icons.summarize,
+      path: '/m/reports',
+    ),
+    NavItem(
       label: 'Profil',
       icon: Icons.person_outline,
       selectedIcon: Icons.person,

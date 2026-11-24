@@ -20,6 +20,7 @@ from apps.audit.services import record_audit
 from apps.core.dates import parse_date_param, resolve_period_range
 from apps.core.enums import ACCEPTED_STATUSES, AuditAction
 from apps.core.permissions import IsMerchant
+from apps.core.renderers import IgnoreClientContentNegotiation, PassthroughRenderer
 from apps.core.utils import format_dzd
 from apps.simulator.models import SimulationScenario
 from apps.simulator.serializers import SimulationInputSerializer
@@ -544,3 +545,62 @@ class MerchantSimulatorRunView(APIView):
         )
 
         return Response(sim_res)
+
+
+class MerchantReportGenerateView(APIView):
+    """
+    Generates and returns activity reports (PDF or CSV) for the authenticated merchant.
+    """
+    permission_classes = [IsMerchant]
+    renderer_classes = [PassthroughRenderer]
+    content_negotiation_class = IgnoreClientContentNegotiation
+
+    def _generate(self, request, fmt, preset, date_from_str, date_to_str):
+        merchant = request.user.merchant
+        c_from, c_to, _, _ = resolve_period_range(
+            preset=preset,
+            date_from_str=date_from_str,
+            date_to_str=date_to_str,
+        )
+
+        record_audit(
+            request=request,
+            actor=request.user,
+            action=AuditAction.EXPORT_GENERATED,
+            target_type="MerchantReport",
+            target_id=str(merchant.id),
+            after={"format": fmt, "preset": preset},
+        )
+
+        from apps.reports.merchant_services import (
+            export_merchant_activity_report_csv,
+            export_merchant_activity_report_pdf,
+        )
+
+        if fmt == "csv":
+            return export_merchant_activity_report_csv(merchant, c_from, c_to)
+        return export_merchant_activity_report_pdf(merchant, c_from, c_to)
+
+    def get(self, request):
+        fmt = request.query_params.get("format", "pdf").lower()
+        preset = request.query_params.get("preset") or request.query_params.get("period", "30d")
+        return self._generate(
+            request,
+            fmt,
+            preset,
+            request.query_params.get("date_from"),
+            request.query_params.get("date_to"),
+        )
+
+    def post(self, request):
+        data = request.data or {}
+        fmt = str(data.get("format", "pdf")).lower()
+        preset = data.get("preset") or data.get("period", "30d")
+        return self._generate(
+            request,
+            fmt,
+            preset,
+            data.get("date_from"),
+            data.get("date_to"),
+        )
+

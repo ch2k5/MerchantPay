@@ -10,6 +10,7 @@ from apps.merchants.admin_views import (
     AdminMerchantListView,
     AdminMerchantStatsView,
     AdminMerchantTransactionsView,
+    AdminReportGenerateView,
     AdminReportMerchantsView,
     AdminReportPlatformView,
     AdminReportRiskView,
@@ -57,6 +58,7 @@ urlpatterns = [
     path("risk/scan/", AdminRiskScanView.as_view(), name="admin-risk-scan"),
     path("risk/summary/", AdminRiskSummaryView.as_view(), name="admin-risk-summary"),
     # Reports
+    path("reports/generate/", AdminReportGenerateView.as_view(), name="admin-reports-generate"),
     path("reports/platform/", AdminReportPlatformView.as_view(), name="admin-reports-platform"),
     path("reports/merchants/", AdminReportMerchantsView.as_view(), name="admin-reports-merchants"),
     path("reports/risk/", AdminReportRiskView.as_view(), name="admin-reports-risk"),
