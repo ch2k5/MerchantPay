@@ -1,7 +1,10 @@
+import 'dart:math';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/chart_utils.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/common_widgets.dart';
 
@@ -61,6 +64,30 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
     final breakdown = (_data?['breakdown'] as List?) ?? [];
     final comparison = _data?['comparison']?['deltas'] ?? {};
     final summaryText = _data?['summary'] ?? '';
+
+    final double maxRevenue = breakdown.fold(100.0, (m, t) {
+      final val = double.tryParse((t['revenue'] ?? t['net_revenue'] ?? t['volume'] ?? 0).toString()) ?? 0.0;
+      return max(m, val);
+    });
+
+    double totalBreakdownRevenue = 0;
+    int totalBreakdownTx = 0;
+    int totalAcceptedTx = 0;
+    double peakRevenue = 0;
+    String peakPeriod = '';
+
+    for (var r in breakdown) {
+      final rev = double.tryParse((r['revenue'] ?? r['net_revenue'] ?? 0).toString()) ?? 0.0;
+      final tot = int.tryParse(r['total_count']?.toString() ?? '0') ?? 0;
+      final acc = int.tryParse(r['accepted_count']?.toString() ?? '0') ?? 0;
+      totalBreakdownRevenue += rev;
+      totalBreakdownTx += tot;
+      totalAcceptedTx += acc;
+      if (rev > peakRevenue) {
+        peakRevenue = rev;
+        peakPeriod = (r['label'] ?? r['date'] ?? '').toString();
+      }
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -193,7 +220,7 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
           ),
           const SizedBox(height: 20),
 
-          // Period Breakdown Table
+          // Period Breakdown: Temporal Chart + Detailed Audit Table
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -203,7 +230,17 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Ventilation chronologique", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Ventilation chronologique", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Rythme temporel des encaissements par ${_granularity == 'month' ? 'mois' : _granularity == 'week' ? 'semaine' : 'jour'}",
+                            style: const TextStyle(fontSize: 12, color: AppColors.slate),
+                          ),
+                        ],
+                      ),
                       SegmentedButton<String>(
                         segments: const [
                           ButtonSegment(value: 'day', label: Text('Jour')),
@@ -218,27 +255,180 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(AppColors.background),
-                      columns: const [
-                        DataColumn(label: Text('Date / Période', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Transactions totales', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Acceptées', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Rejetées', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text("Chiffre d'affaires", style: TextStyle(fontWeight: FontWeight.bold))),
+                  const SizedBox(height: 12),
+
+                  // Visual Guide Box
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.show_chart, color: AppColors.primary, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            "Ce graphique de ventilation chronologique illustre l'évolution temporelle de vos encaissements nets en dinars algériens (DZD). Survolez un point pour consulter le détail de la période ainsi que la répartition entre transactions acceptées et rejetées.",
+                            style: TextStyle(fontSize: 12, color: AppColors.slate, height: 1.4),
+                          ),
+                        ),
                       ],
-                      rows: breakdown.map((row) {
-                        return DataRow(cells: [
-                          DataCell(Text(row['date'] ?? '')),
-                          DataCell(Text('${row['total_count'] ?? 0}')),
-                          DataCell(Text('${row['accepted_count'] ?? 0}', style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600))),
-                          DataCell(Text('${row['rejected_count'] ?? 0}', style: const TextStyle(color: AppColors.danger))),
-                          DataCell(Text(Formatters.formatDzd(row['revenue']), style: const TextStyle(fontWeight: FontWeight.bold))),
-                        ]);
-                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Dynamic summary KPI chips
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      _kpiChip("Encaissement consolidé", Formatters.formatDzd(totalBreakdownRevenue), AppColors.primary),
+                      _kpiChip("Transactions traitées", "$totalBreakdownTx ($totalAcceptedTx acceptées)", AppColors.success),
+                      if (peakPeriod.isNotEmpty)
+                        _kpiChip("Pic de la période", "$peakPeriod (${Formatters.formatDzd(peakRevenue)})", AppColors.warning),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Temporal Line Chart
+                  if (breakdown.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40.0),
+                      child: Center(child: Text("Aucune donnée temporelle disponible sur la période.")),
+                    )
+                  else
+                    SizedBox(
+                      height: 260,
+                      child: LineChart(
+                        LineChartData(
+                          lineTouchData: ChartUtils.lineTouchData(
+                            items: breakdown,
+                            formatter: (idx, val) {
+                              if (idx >= 0 && idx < breakdown.length) {
+                                final item = breakdown[idx];
+                                final acc = item['accepted_count'] ?? 0;
+                                final rej = item['rejected_count'] ?? 0;
+                                return "${Formatters.formatDzd(val)}\n$acc acceptée(s) · $rej rejetée(s)";
+                              }
+                              return Formatters.formatDzd(val);
+                            },
+                          ),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: false,
+                            getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.border, strokeWidth: 0.8),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 55,
+                                getTitlesWidget: (val, _) => Text(
+                                  "${(val / 1000).toInt()}k",
+                                  style: const TextStyle(fontSize: 10, color: AppColors.slate),
+                                ),
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 28,
+                                interval: max(1.0, (breakdown.length / 6).floorToDouble()),
+                                getTitlesWidget: (idx, _) {
+                                  int i = idx.toInt();
+                                  if (i >= 0 && i < breakdown.length) {
+                                    final label = breakdown[i]['label'] ?? breakdown[i]['period_label'] ?? breakdown[i]['date'] ?? '';
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Text(label.toString().split(' ').first, style: const TextStyle(fontSize: 10, color: AppColors.slate)),
+                                    );
+                                  }
+                                  return const SizedBox();
+                                },
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          minY: 0,
+                          maxY: maxRevenue > 0 ? maxRevenue * 1.15 : 100.0,
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: [
+                                for (int i = 0; i < breakdown.length; i++)
+                                  FlSpot(
+                                    i.toDouble(),
+                                    (double.tryParse((breakdown[i]['revenue'] ?? breakdown[i]['net_revenue'] ?? 0).toString()) ?? 0.0),
+                                  ),
+                              ],
+                              isCurved: true,
+                              color: AppColors.primary,
+                              barWidth: 3,
+                              isStrokeCapRound: true,
+                              dotData: FlDotData(
+                                show: breakdown.length <= 15,
+                                getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                                  radius: 3,
+                                  color: AppColors.primary,
+                                  strokeWidth: 1.5,
+                                  strokeColor: Colors.white,
+                                ),
+                              ),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  const Divider(color: AppColors.border, height: 1),
+                  const SizedBox(height: 16),
+
+                  // Data Table section title
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Relevé détaillé de la ventilation", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text("Données certifiées SATIM", style: TextStyle(fontSize: 11, color: AppColors.slate)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Scrollable Table container
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 350),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(AppColors.background),
+                          columns: const [
+                            DataColumn(label: Text('Date / Période', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Transactions totales', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Acceptées', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Rejetées', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text("Chiffre d'affaires", style: TextStyle(fontWeight: FontWeight.bold))),
+                          ],
+                          rows: breakdown.map((row) {
+                            return DataRow(cells: [
+                              DataCell(Text((row['label'] ?? row['date'] ?? '').toString())),
+                              DataCell(Text('${row['total_count'] ?? 0}')),
+                              DataCell(Text('${row['accepted_count'] ?? 0}', style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600))),
+                              DataCell(Text('${row['rejected_count'] ?? 0}', style: const TextStyle(color: AppColors.danger))),
+                              DataCell(Text(Formatters.formatDzd(row['revenue'] ?? row['net_revenue']), style: const TextStyle(fontWeight: FontWeight.bold))),
+                            ]);
+                          }).toList(),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -300,6 +490,30 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
             Text(count, style: const TextStyle(fontSize: 11, color: AppColors.slate)),
           ],
         ),
+      ),
+    );
+  }
+
+  static Widget _kpiChip(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text("$title: ", style: const TextStyle(fontSize: 12, color: AppColors.slate)),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ],
       ),
     );
   }

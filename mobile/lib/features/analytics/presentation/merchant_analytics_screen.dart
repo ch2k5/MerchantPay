@@ -189,7 +189,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
       return const Center(child: Text("Pas assez de données pour tracer la tendance."));
     }
 
-    final double maxRevenue = trends.fold(100.0, (m, t) => max(m, (t['net_revenue'] ?? t['volume'] ?? 0.0).toDouble()));
+    final double maxRevenue = trends.fold(100.0, (m, t) => max(m, (t['revenue'] ?? t['net_revenue'] ?? t['volume'] ?? 0.0).toDouble()));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
@@ -261,7 +261,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                     LineChartBarData(
                       spots: [
                         for (int i = 0; i < trends.length; i++)
-                          FlSpot(i.toDouble(), (trends[i]['net_revenue'] ?? trends[i]['volume'] ?? 0.0).toDouble()),
+                          FlSpot(i.toDouble(), (trends[i]['revenue'] ?? trends[i]['net_revenue'] ?? trends[i]['volume'] ?? 0.0).toDouble()),
                       ],
                       isCurved: true,
                       color: AppColors.primary,

@@ -272,7 +272,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
     final trends = (temporal['trends'] as List?) ?? [];
     final heatmap = temporal['heatmap'] ?? {};
     final matrix = (heatmap['matrix'] as List?) ?? [];
-    final maxVol = trends.fold(100.0, (m, t) => max(m, (t['net_revenue'] ?? t['volume'] ?? 0.0).toDouble()));
+    final maxVol = trends.fold(100.0, (m, t) => max(m, (t['revenue'] ?? t['net_revenue'] ?? t['volume'] ?? 0.0).toDouble()));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -331,7 +331,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                     LineChartBarData(
                       spots: [
                         for (int i = 0; i < trends.length; i++)
-                          FlSpot(i.toDouble(), (trends[i]['net_revenue'] ?? trends[i]['volume'] ?? 0.0).toDouble()),
+                          FlSpot(i.toDouble(), (trends[i]['revenue'] ?? trends[i]['net_revenue'] ?? trends[i]['volume'] ?? 0.0).toDouble()),
                       ],
                       isCurved: true,
                       color: AppColors.primary,

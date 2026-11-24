@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.db.models import (
@@ -369,16 +369,15 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
     Returns zero-gap time series of accepted revenue, transaction count, rejection count.
     Granularity can be 'day', 'week', or 'month'.
     """
-    if granularity == "week":
+    if granularity in ["week", "weekly"]:
+        granularity = "week"
         trunc_fn = TruncWeek
-        step = timedelta(days=7)
-    elif granularity == "month":
+    elif granularity in ["month", "monthly"]:
+        granularity = "month"
         trunc_fn = TruncMonth
-        step = timedelta(days=30)
     else:
         granularity = "day"
         trunc_fn = TruncDate
-        step = timedelta(days=1)
 
     # Aggregation in ORM
     agg_qs = (
@@ -391,6 +390,12 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
             ),
             rejected_count=Count(
                 Case(When(transaction_status__in=REJECTED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            cancelled_count=Count(
+                Case(When(transaction_status__in=CANCELLED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            refunded_count=Count(
+                Case(When(transaction_status__in=REFUNDED_STATUSES, then=1), output_field=IntegerField())
             ),
             revenue=Coalesce(
                 Sum(
@@ -409,41 +414,58 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
     for row in agg_qs:
         p = row["period"]
         if isinstance(p, datetime):
+            p_str = p.astimezone(ALGIERS_TZ).strftime("%Y-%m-%d") if p.tzinfo else p.strftime("%Y-%m-%d")
+        elif isinstance(p, date):
             p_str = p.strftime("%Y-%m-%d")
         else:
-            p_str = str(p)
+            p_str = str(p)[:10]
         agg_map[p_str] = row
 
     # Fill gaps from date_from to date_to
     current_dt = date_from.astimezone(ALGIERS_TZ).date()
     end_dt = date_to.astimezone(ALGIERS_TZ).date()
 
+    if granularity == "week":
+        # Align to Monday of week (ISO weekday 1, Python weekday() == 0)
+        current_dt = current_dt - timedelta(days=current_dt.weekday())
+    elif granularity == "month":
+        # Align to the 1st of month
+        current_dt = current_dt.replace(day=1)
+
     series = []
     while current_dt <= end_dt:
         key = current_dt.strftime("%Y-%m-%d")
         existing = agg_map.get(key)
-        if existing:
-            series.append(
-                {
-                    "date": key,
-                    "label": current_dt.strftime("%d/%m"),
-                    "total_count": existing["total_count"],
-                    "accepted_count": existing["accepted_count"],
-                    "rejected_count": existing["rejected_count"],
-                    "revenue": existing["revenue"],
-                }
-            )
+
+        if granularity == "week":
+            label = f"S{current_dt.isocalendar()[1]} ({current_dt.strftime('%d/%m')})"
+        elif granularity == "month":
+            label = current_dt.strftime("%m/%Y")
         else:
-            series.append(
-                {
-                    "date": key,
-                    "label": current_dt.strftime("%d/%m"),
-                    "total_count": 0,
-                    "accepted_count": 0,
-                    "rejected_count": 0,
-                    "revenue": Decimal("0.00"),
-                }
-            )
+            label = current_dt.strftime("%d/%m")
+
+        rev = existing["revenue"] if existing else Decimal("0.00")
+        tot = existing["total_count"] if existing else 0
+        acc = existing["accepted_count"] if existing else 0
+        rej = existing["rejected_count"] if existing else 0
+        can = existing["cancelled_count"] if existing else 0
+        ref = existing["refunded_count"] if existing else 0
+
+        series.append(
+            {
+                "date": key,
+                "label": label,
+                "period_label": label,
+                "total_count": tot,
+                "accepted_count": acc,
+                "rejected_count": rej,
+                "cancelled_count": can,
+                "refunded_count": ref,
+                "revenue": rev,
+                "net_revenue": rev,
+                "volume": rev,
+            }
+        )
 
         if granularity == "day":
             current_dt += timedelta(days=1)
