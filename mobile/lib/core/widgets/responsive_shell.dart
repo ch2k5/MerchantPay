@@ -81,6 +81,12 @@ class ResponsiveShell extends ConsumerWidget {
       path: '/a/dashboard',
     ),
     NavItem(
+      label: 'Analyses & Stats',
+      icon: Icons.analytics_outlined,
+      selectedIcon: Icons.analytics,
+      path: '/a/analytics',
+    ),
+    NavItem(
       label: 'Commerçants',
       icon: Icons.storefront_outlined,
       selectedIcon: Icons.storefront,

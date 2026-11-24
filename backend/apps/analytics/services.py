@@ -18,6 +18,7 @@ from apps.core.enums import (
     CANCELLED_STATUSES,
     REFUNDED_STATUSES,
     REJECTED_STATUSES,
+    MerchantStatus,
     PaymentChannel,
 )
 
@@ -508,3 +509,282 @@ def compute_heatmap(queryset) -> dict:
         "top_3_weekdays": top_3_weekdays,
         "day_names": day_names,
     }
+
+
+def compute_admin_platform_analytics(
+    queryset,
+    prev_queryset=None,
+    date_from=None,
+    date_to=None,
+    granularity="day",
+) -> dict:
+    """
+    Consolidated enterprise-grade analytics engine for SATIM Administrators.
+    Calculates 4 core pillars:
+    1. Vue d'ensemble (Totals, Volume, Rates, Comparison)
+    2. Analyse temporelle (Trends, Peak slots, Heatmap matrix)
+    3. Analyse des commerçants (Ranking, Category breakdown, Anomaly detection)
+    4. Analyse des transactions (Status distribution, Channel distribution, Amount brackets, Rejection patterns)
+    """
+    total_tx = queryset.count()
+    kpis_curr = compute_kpis(queryset)
+
+    # 1. Comparison with previous period
+    comparison = {}
+    if prev_queryset is not None:
+        kpis_prev = compute_kpis(prev_queryset)
+        comparison = compare_kpis(kpis_curr, kpis_prev)
+
+    # Active merchants
+    from apps.merchants.models import Merchant
+    total_merchants_count = Merchant.objects.count()
+    active_merchants_count = Merchant.objects.filter(status=MerchantStatus.ACTIVE).count()
+
+    overview = {
+        "total_volume": kpis_curr["accepted_amount"],
+        "net_revenue": kpis_curr["net_revenue"],
+        "total_transactions": kpis_curr["total_transactions"],
+        "accepted_count": kpis_curr["accepted_count"],
+        "rejected_count": kpis_curr["rejected_count"],
+        "refunded_count": kpis_curr["refunded_count"],
+        "cancelled_count": kpis_curr["cancelled_count"],
+        "success_rate": kpis_curr["success_rate"],
+        "rejection_rate": kpis_curr["rejection_rate"],
+        "avg_ticket": kpis_curr["avg_ticket"],
+        "active_merchants": active_merchants_count,
+        "total_merchants": total_merchants_count,
+        "comparison": comparison,
+    }
+
+    # 2. Analyse temporelle
+    if date_from and date_to:
+        trends = compute_trends(queryset, date_from, date_to, granularity=granularity)
+    else:
+        # default to 30 days window
+        now = timezone.now().astimezone(ALGIERS_TZ)
+        d_from = now - timedelta(days=30)
+        trends = compute_trends(queryset, d_from, now, granularity=granularity)
+
+    heatmap_res = compute_heatmap(queryset)
+    day_names = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+    matrix_2d = heatmap_res.get("matrix", [[0] * 24 for _ in range(7)])
+
+    # Flat cells for UI
+    flat_matrix = []
+    for d in range(7):
+        for h in range(24):
+            flat_matrix.append({
+                "day_index": d,
+                "day_name": day_names[d],
+                "hour": h,
+                "count": matrix_2d[d][h] if d < len(matrix_2d) and h < len(matrix_2d[d]) else 0,
+            })
+
+    peak_slot = heatmap_res.get("peak_slot") or {"day": "Dimanche", "day_name": "Dimanche", "hour": 12, "count": 0}
+    if "day_name" not in peak_slot:
+        peak_slot["day_name"] = peak_slot.get("day", "Dimanche")
+
+    low_slot = heatmap_res.get("low_slot") or {"day": "Dimanche", "day_name": "Dimanche", "hour": 8, "count": 0}
+    if "day_name" not in low_slot:
+        low_slot["day_name"] = low_slot.get("day", "Dimanche")
+
+    temporal = {
+        "granularity": granularity,
+        "trends": trends,
+        "heatmap": {
+            "matrix": flat_matrix,
+            "matrix_2d": matrix_2d,
+            "peak_slot": peak_slot,
+            "low_slot": low_slot,
+            "top_3_hours": heatmap_res.get("top_3_hours", []),
+            "top_3_weekdays": heatmap_res.get("top_3_weekdays", []),
+            "hourly_totals": heatmap_res.get("hourly_totals", []),
+            "weekday_totals": heatmap_res.get("weekday_totals", []),
+        },
+    }
+
+    # 3. Analyse des commerçants
+    merchants_agg = (
+        Merchant.objects.filter(transactions__in=queryset)
+        .annotate(
+            total_tx=Count("transactions__transaction_id"),
+            accepted_tx=Count(
+                Case(When(transactions__transaction_status__in=ACCEPTED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            rejected_tx=Count(
+                Case(When(transactions__transaction_status__in=REJECTED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            volume=Coalesce(
+                Sum(
+                    Case(
+                        When(transactions__transaction_status__in=ACCEPTED_STATUSES, then=F("transactions__amount")),
+                        output_field=DecimalField(),
+                    )
+                ),
+                Decimal("0.00"),
+            ),
+        )
+        .distinct()
+    )
+
+    top_volume_merchants = []
+    for m in merchants_agg.order_by("-volume")[:10]:
+        tot = m.total_tx
+        rej = m.rejected_tx
+        acc = m.accepted_tx
+        rate = round((acc / tot * 100), 2) if tot > 0 else 0.0
+        rej_rate = round((rej / tot * 100), 2) if tot > 0 else 0.0
+        top_volume_merchants.append({
+            "id": str(m.id),
+            "code": m.merchant_code,
+            "name": m.business_name,
+            "category": m.merchant_category,
+            "wilaya": m.wilaya,
+            "volume": m.volume,
+            "tx_count": tot,
+            "success_rate": rate,
+            "rejection_rate": rej_rate,
+        })
+
+    # Top by rejection count
+    top_rejection_merchants = []
+    for m in merchants_agg.filter(rejected_tx__gt=0).order_by("-rejected_tx")[:10]:
+        tot = m.total_tx
+        rej = m.rejected_tx
+        rej_rate = round((rej / tot * 100), 2) if tot > 0 else 0.0
+        top_rejection_merchants.append({
+            "id": str(m.id),
+            "code": m.merchant_code,
+            "name": m.business_name,
+            "category": m.merchant_category,
+            "wilaya": m.wilaya,
+            "rejected_count": rej,
+            "total_count": tot,
+            "rejection_rate": rej_rate,
+        })
+
+    # Category performance
+    categories_agg = (
+        queryset.values("merchant_category")
+        .annotate(
+            total_count=Count("transaction_id"),
+            accepted_count=Count(
+                Case(When(transaction_status__in=ACCEPTED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            rejected_count=Count(
+                Case(When(transaction_status__in=REJECTED_STATUSES, then=1), output_field=IntegerField())
+            ),
+            total_amount=Coalesce(
+                Sum(
+                    Case(
+                        When(transaction_status__in=ACCEPTED_STATUSES, then=F("amount")),
+                        output_field=DecimalField(),
+                    )
+                ),
+                Decimal("0.00"),
+            ),
+        )
+        .order_by("-total_amount")
+    )
+
+    total_accepted_volume = kpis_curr["accepted_amount"]
+    category_performance = []
+    for c in categories_agg:
+        cat_name = c["merchant_category"] or "Non catégorisé"
+        c_tot = c["total_count"]
+        c_acc = c["accepted_count"]
+        c_rej = c["rejected_count"]
+        c_vol = c["total_amount"]
+        avg = round(c_vol / Decimal(str(c_acc)), 2) if c_acc > 0 else Decimal("0.00")
+        rej_rate = round((c_rej / c_tot * 100), 2) if c_tot > 0 else 0.0
+        share_pct = round(float((c_vol / total_accepted_volume) * 100), 2) if total_accepted_volume > Decimal("0.00") else 0.0
+
+        category_performance.append({
+            "category": cat_name,
+            "total_count": c_tot,
+            "accepted_count": c_acc,
+            "rejected_count": c_rej,
+            "volume": c_vol,
+            "avg_ticket": avg,
+            "rejection_rate": rej_rate,
+            "share_pct": share_pct,
+        })
+
+    # Anomalous merchants (e.g. rejection rate > 25% with >= 5 transactions)
+    anomalous_merchants = [
+        m for m in top_rejection_merchants if m["rejection_rate"] >= 25.0 and m["total_count"] >= 5
+    ]
+
+    merchants_analysis = {
+        "top_by_volume": top_volume_merchants,
+        "top_by_rejections": top_rejection_merchants,
+        "category_performance": category_performance,
+        "anomalous_merchants": anomalous_merchants,
+        "active_merchants_count": active_merchants_count,
+        "total_merchants_count": total_merchants_count,
+    }
+
+    # 4. Analyse des transactions
+    # Status breakdown
+    official_summary = compute_payment_transactions_summary(queryset)
+    status_distribution = official_summary.get("breakdown_by_status", {}).get("rows", [])
+    channel_distribution = official_summary.get("breakdown_by_channel", {}).get("rows", [])
+
+    # Amount brackets
+    b1 = queryset.filter(amount__lt=Decimal("1000.00")).count()
+    b2 = queryset.filter(amount__gte=Decimal("1000.00"), amount__lt=Decimal("5000.00")).count()
+    b3 = queryset.filter(amount__gte=Decimal("5000.00"), amount__lt=Decimal("20000.00")).count()
+    b4 = queryset.filter(amount__gte=Decimal("20000.00"), amount__lt=Decimal("50000.00")).count()
+    b5 = queryset.filter(amount__gte=Decimal("50000.00")).count()
+
+    amount_brackets = [
+        {"label": "< 1 000 DA", "count": b1, "pct": round(b1 / total_tx * 100, 2) if total_tx > 0 else 0.0},
+        {"label": "1 000 - 5 000 DA", "count": b2, "pct": round(b2 / total_tx * 100, 2) if total_tx > 0 else 0.0},
+        {"label": "5 000 - 20 000 DA", "count": b3, "pct": round(b3 / total_tx * 100, 2) if total_tx > 0 else 0.0},
+        {"label": "20 000 - 50 000 DA", "count": b4, "pct": round(b4 / total_tx * 100, 2) if total_tx > 0 else 0.0},
+        {"label": "≥ 50 000 DA", "count": b5, "pct": round(b5 / total_tx * 100, 2) if total_tx > 0 else 0.0},
+    ]
+
+    # Rejection reasons breakdown
+    rejection_reasons_qs = (
+        queryset.filter(transaction_status__in=REJECTED_STATUSES)
+        .exclude(rejection_reason__isnull=True)
+        .exclude(rejection_reason__exact="")
+        .values("rejection_reason")
+        .annotate(count=Count("transaction_id"))
+        .order_by("-count")[:7]
+    )
+    total_rejections = kpis_curr["rejected_count"]
+    rejection_reasons = [
+        {
+            "reason": r["rejection_reason"],
+            "count": r["count"],
+            "pct": round(r["count"] / total_rejections * 100, 2) if total_rejections > 0 else 0.0,
+        }
+        for r in rejection_reasons_qs
+    ]
+
+    transactions_analysis = {
+        "status_distribution": status_distribution,
+        "channel_distribution": channel_distribution,
+        "amount_brackets": amount_brackets,
+        "rejection_reasons": rejection_reasons,
+        "refund_stats": {
+            "count": kpis_curr["refunded_count"],
+            "amount": kpis_curr["refunded_amount"],
+            "rate_pct": round(kpis_curr["refunded_count"] / total_tx * 100, 2) if total_tx > 0 else 0.0,
+        },
+        "cancellation_stats": {
+            "count": kpis_curr["cancelled_count"],
+            "amount": kpis_curr["cancelled_amount"],
+            "rate_pct": round(kpis_curr["cancelled_count"] / total_tx * 100, 2) if total_tx > 0 else 0.0,
+        },
+    }
+
+    return {
+        "overview": overview,
+        "temporal": temporal,
+        "merchants_analysis": merchants_analysis,
+        "transactions_analysis": transactions_analysis,
+    }
+

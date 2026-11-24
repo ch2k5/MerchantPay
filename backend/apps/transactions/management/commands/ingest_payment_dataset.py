@@ -70,9 +70,12 @@ class Command(BaseCommand):
         file_path = options.get("file")
         if not file_path:
             candidates = [
+                Path("/home/ch2k5/Documents/finovia hackathon/merchant-pay/data/payment_transactions_dataset.csv"),
                 Path(__file__).resolve().parents[5] / "data" / "payment_transactions_dataset.csv",
                 Path(__file__).resolve().parents[4] / "data" / "payment_transactions_dataset.csv",
+                Path(__file__).resolve().parents[3] / "data" / "payment_transactions_dataset.csv",
                 Path("data/payment_transactions_dataset.csv"),
+                Path("../data/payment_transactions_dataset.csv"),
             ]
             for c in candidates:
                 if c.exists():

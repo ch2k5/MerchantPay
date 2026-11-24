@@ -293,10 +293,10 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                     centerSpaceRadius: 36,
                     sections: channels.map((c) {
                       final isCib = c['channel'] == 'CIB';
-                      final share = (c['share_pct'] as num?)?.toDouble() ?? 0.0;
+                      final share = (c['share_pct'] as num?)?.toDouble() ?? (c['amount_pct'] as num?)?.toDouble() ?? 0.0;
                       return PieChartSectionData(
-                        value: share,
-                        title: '${share.toStringAsFixed(0)}%',
+                        value: share <= 0 ? 0.1 : share,
+                        title: share <= 0 ? '' : '${share.toStringAsFixed(0)}%',
                         titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                         color: isCib ? AppColors.cibBlue : AppColors.edahabiaGold,
                         radius: 36,
@@ -311,7 +311,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                   children: channels.map((c) {
                     final isCib = c['channel'] == 'CIB';
                     final color = isCib ? AppColors.cibBlue : AppColors.edahabiaGold;
-                    final rev = (c['revenue'] as num?)?.toDouble() ?? 0.0;
+                    final rev = (c['revenue'] as num?)?.toDouble() ?? (c['accepted_amount'] as num?)?.toDouble() ?? 0.0;
                     final cnt = c['count'] ?? 0;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
@@ -433,8 +433,15 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
     // Find max count for color scale
     int maxCount = 1;
     for (var cell in matrix) {
-      final c = (cell['count'] as num?)?.toInt() ?? 0;
-      if (c > maxCount) maxCount = c;
+      if (cell is Map) {
+        final c = (cell['count'] as num?)?.toInt() ?? 0;
+        if (c > maxCount) maxCount = c;
+      } else if (cell is List) {
+        for (var sub in cell) {
+          final c = (sub as num?)?.toInt() ?? 0;
+          if (c > maxCount) maxCount = c;
+        }
+      }
     }
 
     return Container(
@@ -501,7 +508,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                   // Day rows
                   ...List.generate(7, (d) {
                     final dayName = days[d];
-                    final dayCells = matrix.where((m) => m['day_index'] == d).toList();
+                    final dayCells = matrix.where((m) => m is Map && m['day_index'] == d).toList();
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2.0),
                       child: Row(

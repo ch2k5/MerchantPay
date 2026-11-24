@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.merchants.admin_views import (
+    AdminAnalyticsExportView,
+    AdminAnalyticsView,
     AdminAuditLogListView,
     AdminDashboardView,
     AdminMerchantActivationView,
@@ -18,6 +20,7 @@ from apps.merchants.admin_views import (
     AdminRiskScanView,
     AdminRiskSummaryView,
     AdminTransactionDetailView,
+    AdminTransactionExportView,
     AdminTransactionListView,
     AdminUserDetailView,
     AdminUserListCreateView,
@@ -26,6 +29,8 @@ from apps.merchants.admin_views import (
 urlpatterns = [
     # Global Supervision
     path("dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("analytics/", AdminAnalyticsView.as_view(), name="admin-analytics"),
+    path("analytics/export/", AdminAnalyticsExportView.as_view(), name="admin-analytics-export"),
     # Merchants Management
     path("merchants/", AdminMerchantListView.as_view(), name="admin-merchants-list"),
     path("merchants/<uuid:pk>/", AdminMerchantDetailView.as_view(), name="admin-merchants-detail"),
@@ -42,6 +47,7 @@ urlpatterns = [
     ),
     # Transactions Explorer
     path("transactions/", AdminTransactionListView.as_view(), name="admin-transactions-list"),
+    path("transactions/export/", AdminTransactionExportView.as_view(), name="admin-transactions-export"),
     path("transactions/<uuid:pk>/", AdminTransactionDetailView.as_view(), name="admin-transactions-detail"),
     # Risk & Fraud Engine
     path("risk/flags/", AdminRiskFlagListView.as_view(), name="admin-risk-flags-list"),

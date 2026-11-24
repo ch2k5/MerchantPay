@@ -1,0 +1,151 @@
+transaction_id,merchant_id,transaction_date,amount,payment_channel,transaction_status,merchant_category
+TXN-20260001,MER-3615,2026-05-01 10:49:00,15547.58,Contactless / NFC,Accepted,Digital Services & Telecom
+TXN-20260002,MER-1520,2026-05-01 12:16:00,7732.47,Mobile App,Accepted,Digital Services & Telecom
+TXN-20260003,MER-5012,2026-05-01 19:20:00,18356.37,TPE / POS Terminal,Accepted,Groceries & Supermarkets
+TXN-20260004,MER-5506,2026-05-03 21:52:00,48079.33,E-commerce (CIB / Edahabia),Refunded,Electronics & Tech
+TXN-20260005,MER-2535,2026-05-04 02:59:00,6958.41,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260006,MER-5012,2026-05-07 21:12:00,6958.53,Contactless / NFC,Accepted,Groceries & Supermarkets
+TXN-20260007,MER-1488,2026-05-08 03:56:00,51144.43,TPE / POS Terminal,Accepted,Travel & Hospitality
+TXN-20260008,MER-5552,2026-05-09 10:04:00,20940.76,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260009,MER-1488,2026-05-11 09:23:00,5371.45,E-commerce (CIB / Edahabia),Accepted,Healthcare & Pharmacy
+TXN-20260010,MER-7873,2026-05-14 02:40:00,16351.76,Mobile App,Accepted,Groceries & Supermarkets
+TXN-20260011,MER-2424,2026-05-15 07:56:00,5407.35,E-commerce (CIB / Edahabia),Cancelled,Digital Services & Telecom
+TXN-20260012,MER-7924,2026-05-15 18:47:00,5393.62,E-commerce (CIB / Edahabia),Accepted,Groceries & Supermarkets
+TXN-20260013,MER-1409,2026-05-16 05:24:00,11747.94,TPE / POS Terminal,Accepted,Travel & Hospitality
+TXN-20260014,MER-1106,2026-05-18 07:23:00,1097.36,Mobile App,Accepted,Food & Dining
+TXN-20260015,MER-4811,2026-05-18 08:22:00,1350.01,Mobile App,Accepted,Digital Services & Telecom
+TXN-20260016,MER-4257,2026-05-18 17:49:00,4850.12,E-commerce (CIB / Edahabia),Accepted,Healthcare & Pharmacy
+TXN-20260017,MER-5012,2026-05-18 21:55:00,2954.72,Mobile App,Cancelled,Retail & Apparel
+TXN-20260018,MER-4527,2026-05-18 21:58:00,12720.2,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260019,MER-2535,2026-05-20 14:51:00,3315.78,E-commerce (CIB / Edahabia),Cancelled,Food & Dining
+TXN-20260020,MER-5506,2026-05-20 22:57:00,1904.05,Mobile App,Refunded,Groceries & Supermarkets
+TXN-20260021,MER-4257,2026-05-21 13:42:00,45138.39,TPE / POS Terminal,Accepted,Digital Services & Telecom
+TXN-20260022,MER-7912,2026-05-25 21:27:00,7022.83,Mobile App,Accepted,Retail & Apparel
+TXN-20260023,MER-6574,2026-05-26 01:25:00,9696.84,Mobile App,Accepted,Travel & Hospitality
+TXN-20260024,MER-4611,2026-05-26 02:34:00,1878.17,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260025,MER-7873,2026-05-28 07:12:00,4946.59,E-commerce (CIB / Edahabia),Accepted,Digital Services & Telecom
+TXN-20260026,MER-3547,2026-05-28 20:19:00,10170.94,TPE / POS Terminal,Accepted,Healthcare & Pharmacy
+TXN-20260027,MER-5552,2026-05-28 23:35:00,2538.13,E-commerce (CIB / Edahabia),Accepted,Groceries & Supermarkets
+TXN-20260028,MER-1488,2026-05-29 09:27:00,13609.76,E-commerce (CIB / Edahabia),Accepted,Electronics & Tech
+TXN-20260029,MER-9928,2026-06-02 04:42:00,4649.77,Bank Transfer / Virement,Declined,Food & Dining
+TXN-20260030,MER-2679,2026-06-03 11:56:00,6531.63,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260031,MER-5557,2026-06-03 20:16:00,4644.31,Contactless / NFC,Declined,Retail & Apparel
+TXN-20260032,MER-5506,2026-06-03 21:41:00,69063.44,TPE / POS Terminal,Accepted,Healthcare & Pharmacy
+TXN-20260033,MER-1409,2026-06-04 08:07:00,8869.98,Mobile App,Accepted,Groceries & Supermarkets
+TXN-20260034,MER-8359,2026-06-05 13:11:00,2812.4,TPE / POS Terminal,Accepted,Digital Services & Telecom
+TXN-20260035,MER-9935,2026-06-07 13:08:00,22249.49,TPE / POS Terminal,Accepted,Digital Services & Telecom
+TXN-20260036,MER-3615,2026-06-08 17:02:00,2350.41,TPE / POS Terminal,Refunded,Electronics & Tech
+TXN-20260037,MER-7912,2026-06-09 07:55:00,11327.91,E-commerce (CIB / Edahabia),Declined,Groceries & Supermarkets
+TXN-20260038,MER-5506,2026-06-09 08:18:00,1042.77,Mobile App,Declined,Digital Services & Telecom
+TXN-20260039,MER-5552,2026-06-10 14:00:00,2088.64,E-commerce (CIB / Edahabia),Accepted,Healthcare & Pharmacy
+TXN-20260040,MER-9935,2026-06-10 22:06:00,11179.33,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260041,MER-5552,2026-06-11 05:56:00,20284.01,TPE / POS Terminal,Declined,Electronics & Tech
+TXN-20260042,MER-5012,2026-06-11 23:28:00,10870.19,E-commerce (CIB / Edahabia),Declined,Retail & Apparel
+TXN-20260043,MER-2535,2026-06-17 02:38:00,7927.25,Contactless / NFC,Cancelled,Digital Services & Telecom
+TXN-20260044,MER-2424,2026-06-18 09:13:00,6464.37,Bank Transfer / Virement,Accepted,Travel & Hospitality
+TXN-20260045,MER-4811,2026-06-18 17:28:00,1770.29,Contactless / NFC,Accepted,Food & Dining
+TXN-20260046,MER-4611,2026-06-20 04:23:00,4078.34,TPE / POS Terminal,Declined,Travel & Hospitality
+TXN-20260047,MER-6574,2026-06-20 11:27:00,5423.91,E-commerce (CIB / Edahabia),Accepted,Travel & Hospitality
+TXN-20260048,MER-1488,2026-06-21 22:19:00,28799.38,Contactless / NFC,Cancelled,Food & Dining
+TXN-20260049,MER-3286,2026-06-24 12:57:00,13137.88,TPE / POS Terminal,Refunded,Retail & Apparel
+TXN-20260050,MER-1488,2026-06-24 16:16:00,1294.57,Bank Transfer / Virement,Accepted,Travel & Hospitality
+TXN-20260051,MER-1488,2026-06-26 00:04:00,12858.59,Bank Transfer / Virement,Declined,Electronics & Tech
+TXN-20260052,MER-2679,2026-06-28 02:57:00,5893.97,Contactless / NFC,Declined,Groceries & Supermarkets
+TXN-20260053,MER-8359,2026-06-30 12:07:00,4275.52,E-commerce (CIB / Edahabia),Accepted,Electronics & Tech
+TXN-20260054,MER-2424,2026-07-01 08:25:00,17643.43,TPE / POS Terminal,Refunded,Healthcare & Pharmacy
+TXN-20260055,MER-5557,2026-07-02 15:51:00,27983.61,Contactless / NFC,Accepted,Electronics & Tech
+TXN-20260056,MER-4527,2026-07-03 07:04:00,25076.41,E-commerce (CIB / Edahabia),Declined,Electronics & Tech
+TXN-20260057,MER-8359,2026-07-03 21:06:00,3576.48,E-commerce (CIB / Edahabia),Accepted,Healthcare & Pharmacy
+TXN-20260058,MER-4611,2026-07-05 01:45:00,6406.97,TPE / POS Terminal,Refunded,Food & Dining
+TXN-20260059,MER-5506,2026-07-06 05:37:00,12960.54,Contactless / NFC,Accepted,Retail & Apparel
+TXN-20260060,MER-7873,2026-07-07 01:06:00,26327.63,Mobile App,Accepted,Retail & Apparel
+TXN-20260061,MER-4611,2026-07-07 16:55:00,5314.44,TPE / POS Terminal,Refunded,Groceries & Supermarkets
+TXN-20260062,MER-3286,2026-07-08 20:21:00,7339.68,E-commerce (CIB / Edahabia),Accepted,Travel & Hospitality
+TXN-20260063,MER-4257,2026-07-11 14:15:00,2665.92,TPE / POS Terminal,Accepted,Groceries & Supermarkets
+TXN-20260064,MER-1106,2026-07-12 05:28:00,2414.98,Bank Transfer / Virement,Cancelled,Retail & Apparel
+TXN-20260065,MER-9935,2026-07-16 14:20:00,22005.62,E-commerce (CIB / Edahabia),Cancelled,Retail & Apparel
+TXN-20260066,MER-3286,2026-07-16 16:19:00,40020.17,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260067,MER-4811,2026-07-20 01:03:00,8317.06,Contactless / NFC,Accepted,Food & Dining
+TXN-20260068,MER-2535,2026-07-20 08:13:00,27150.78,Mobile App,Accepted,Travel & Hospitality
+TXN-20260069,MER-2424,2026-07-24 19:20:00,13400.86,Mobile App,Accepted,Food & Dining
+TXN-20260070,MER-4527,2026-07-26 00:37:00,4427.73,Mobile App,Accepted,Electronics & Tech
+TXN-20260071,MER-4611,2026-07-27 06:43:00,13397.32,TPE / POS Terminal,Accepted,Healthcare & Pharmacy
+TXN-20260072,MER-5557,2026-07-30 13:26:00,48879.58,E-commerce (CIB / Edahabia),Declined,Food & Dining
+TXN-20260073,MER-4257,2026-07-30 17:56:00,8654.77,Mobile App,Declined,Electronics & Tech
+TXN-20260074,MER-9935,2026-07-31 06:43:00,50331.32,Mobile App,Declined,Groceries & Supermarkets
+TXN-20260075,MER-8359,2026-08-01 09:15:00,504.49,Contactless / NFC,Accepted,Food & Dining
+TXN-20260076,MER-1520,2026-08-03 18:35:00,22233.77,Contactless / NFC,Accepted,Travel & Hospitality
+TXN-20260077,MER-6574,2026-08-04 14:57:00,9907.29,TPE / POS Terminal,Accepted,Healthcare & Pharmacy
+TXN-20260078,MER-3615,2026-08-06 01:54:00,6479.29,TPE / POS Terminal,Accepted,Digital Services & Telecom
+TXN-20260079,MER-3615,2026-08-07 18:12:00,9958.8,Mobile App,Accepted,Retail & Apparel
+TXN-20260080,MER-1409,2026-08-11 10:17:00,1011.26,TPE / POS Terminal,Refunded,Digital Services & Telecom
+TXN-20260081,MER-9935,2026-08-11 21:41:00,7070.14,Mobile App,Accepted,Electronics & Tech
+TXN-20260082,MER-6574,2026-08-13 06:06:00,13334.35,Mobile App,Accepted,Food & Dining
+TXN-20260083,MER-1409,2026-08-13 15:30:00,45750.51,Contactless / NFC,Accepted,Electronics & Tech
+TXN-20260084,MER-7924,2026-08-13 19:47:00,5090.74,E-commerce (CIB / Edahabia),Declined,Digital Services & Telecom
+TXN-20260085,MER-1520,2026-08-14 00:11:00,3699.42,TPE / POS Terminal,Accepted,Electronics & Tech
+TXN-20260086,MER-2535,2026-08-14 21:55:00,5184.05,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260087,MER-2424,2026-08-17 08:02:00,24642.23,TPE / POS Terminal,Accepted,Travel & Hospitality
+TXN-20260088,MER-5506,2026-08-17 22:46:00,12924.77,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260089,MER-2679,2026-08-20 00:33:00,5026.8,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260090,MER-4527,2026-08-26 11:19:00,15833.27,TPE / POS Terminal,Declined,Retail & Apparel
+TXN-20260091,MER-9928,2026-08-26 19:36:00,10017.21,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260092,MER-3547,2026-08-28 23:03:00,26128.56,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260093,MER-5557,2026-08-29 07:12:00,4158.94,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260094,MER-1520,2026-08-30 17:10:00,6278.25,E-commerce (CIB / Edahabia),Cancelled,Travel & Hospitality
+TXN-20260095,MER-2679,2026-09-03 00:07:00,5848.59,Mobile App,Accepted,Retail & Apparel
+TXN-20260096,MER-4611,2026-09-03 08:57:00,1799.76,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260097,MER-9279,2026-09-06 05:32:00,12469.08,E-commerce (CIB / Edahabia),Declined,Healthcare & Pharmacy
+TXN-20260098,MER-2535,2026-09-08 02:54:00,11997.28,TPE / POS Terminal,Cancelled,Electronics & Tech
+TXN-20260099,MER-3547,2026-09-09 07:17:00,9053.44,Mobile App,Cancelled,Travel & Hospitality
+TXN-20260100,MER-4527,2026-09-10 14:07:00,6955.09,E-commerce (CIB / Edahabia),Declined,Retail & Apparel
+TXN-20260101,MER-4611,2026-09-13 05:03:00,1897.64,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260102,MER-4811,2026-09-15 21:46:00,5667.85,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260103,MER-4657,2026-09-16 01:47:00,6175.15,E-commerce (CIB / Edahabia),Declined,Retail & Apparel
+TXN-20260104,MER-2424,2026-09-16 04:46:00,3724.81,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260105,MER-4657,2026-09-16 23:44:00,7539.12,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260106,MER-9935,2026-09-17 22:19:00,14040.91,TPE / POS Terminal,Refunded,Retail & Apparel
+TXN-20260107,MER-1106,2026-09-18 03:03:00,71688.04,Mobile App,Accepted,Retail & Apparel
+TXN-20260108,MER-4257,2026-09-19 07:37:00,10908.64,Bank Transfer / Virement,Accepted,Electronics & Tech
+TXN-20260109,MER-4257,2026-09-19 09:59:00,11951.12,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260110,MER-2424,2026-09-19 22:27:00,8294.8,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260111,MER-1106,2026-09-21 00:07:00,1090.76,Mobile App,Accepted,Electronics & Tech
+TXN-20260112,MER-9928,2026-09-23 02:05:00,8743.88,E-commerce (CIB / Edahabia),Accepted,Groceries & Supermarkets
+TXN-20260113,MER-4582,2026-09-23 07:37:00,9619.31,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260114,MER-3547,2026-09-24 18:30:00,135244.71,E-commerce (CIB / Edahabia),Accepted,Groceries & Supermarkets
+TXN-20260115,MER-9928,2026-09-27 15:32:00,7285.76,E-commerce (CIB / Edahabia),Declined,Travel & Hospitality
+TXN-20260116,MER-2535,2026-09-27 18:33:00,12543.74,Bank Transfer / Virement,Accepted,Retail & Apparel
+TXN-20260117,MER-1488,2026-09-30 01:39:00,8665.39,Mobile App,Cancelled,Healthcare & Pharmacy
+TXN-20260118,MER-9935,2026-09-30 13:22:00,2489.23,Mobile App,Accepted,Digital Services & Telecom
+TXN-20260119,MER-4657,2026-10-02 06:45:00,31646.41,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260120,MER-1434,2026-10-03 13:13:00,20586.71,E-commerce (CIB / Edahabia),Refunded,Food & Dining
+TXN-20260121,MER-9279,2026-10-03 16:07:00,21491.44,E-commerce (CIB / Edahabia),Accepted,Groceries & Supermarkets
+TXN-20260122,MER-5506,2026-10-04 20:33:00,3310.81,E-commerce (CIB / Edahabia),Cancelled,Groceries & Supermarkets
+TXN-20260123,MER-3615,2026-10-10 08:32:00,42122.97,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260124,MER-1409,2026-10-11 16:38:00,1926.07,Mobile App,Cancelled,Retail & Apparel
+TXN-20260125,MER-5552,2026-10-12 16:25:00,17168.26,Mobile App,Accepted,Food & Dining
+TXN-20260126,MER-5012,2026-10-14 17:53:00,100185.22,E-commerce (CIB / Edahabia),Refunded,Electronics & Tech
+TXN-20260127,MER-4657,2026-10-17 03:46:00,3028.08,Bank Transfer / Virement,Accepted,Travel & Hospitality
+TXN-20260128,MER-4611,2026-10-17 03:56:00,4828.77,Mobile App,Cancelled,Food & Dining
+TXN-20260129,MER-3286,2026-10-18 13:20:00,10045.61,TPE / POS Terminal,Accepted,Electronics & Tech
+TXN-20260130,MER-7924,2026-10-19 15:13:00,5174.26,TPE / POS Terminal,Accepted,Groceries & Supermarkets
+TXN-20260131,MER-8359,2026-10-19 22:20:00,1635.24,TPE / POS Terminal,Cancelled,Retail & Apparel
+TXN-20260132,MER-4582,2026-10-20 20:41:00,9707.89,E-commerce (CIB / Edahabia),Accepted,Food & Dining
+TXN-20260133,MER-7873,2026-10-21 17:21:00,2798.23,TPE / POS Terminal,Accepted,Groceries & Supermarkets
+TXN-20260134,MER-5506,2026-10-29 20:03:00,15157.13,Mobile App,Accepted,Healthcare & Pharmacy
+TXN-20260135,MER-2535,2026-10-31 15:09:00,3274.46,E-commerce (CIB / Edahabia),Accepted,Electronics & Tech
+TXN-20260136,MER-2535,2026-11-01 23:16:00,49523.5,E-commerce (CIB / Edahabia),Accepted,Electronics & Tech
+TXN-20260137,MER-7873,2026-11-03 10:27:00,3803.57,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260138,MER-4811,2026-11-03 10:51:00,6317.05,E-commerce (CIB / Edahabia),Refunded,Electronics & Tech
+TXN-20260139,MER-1434,2026-11-04 15:52:00,22029.63,Contactless / NFC,Accepted,Electronics & Tech
+TXN-20260140,MER-2424,2026-11-05 07:17:00,2324.65,Mobile App,Accepted,Food & Dining
+TXN-20260141,MER-4257,2026-11-05 10:50:00,11562.02,TPE / POS Terminal,Cancelled,Food & Dining
+TXN-20260142,MER-5552,2026-11-06 23:42:00,37916.13,E-commerce (CIB / Edahabia),Refunded,Food & Dining
+TXN-20260143,MER-2824,2026-11-09 02:00:00,1536.16,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260144,MER-8359,2026-11-09 07:10:00,11029.98,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260145,MER-1106,2026-11-12 05:34:00,11981.82,E-commerce (CIB / Edahabia),Accepted,Retail & Apparel
+TXN-20260146,MER-5012,2026-11-16 16:58:00,21274.83,TPE / POS Terminal,Accepted,Food & Dining
+TXN-20260147,MER-8359,2026-11-17 14:18:00,2309.14,TPE / POS Terminal,Accepted,Retail & Apparel
+TXN-20260148,MER-3547,2026-11-17 17:42:00,2106.48,TPE / POS Terminal,Accepted,Healthcare & Pharmacy
+TXN-20260149,MER-4257,2026-11-20 01:57:00,15985.07,TPE / POS Terminal,Accepted,Travel & Hospitality
+TXN-20260150,MER-3615,2026-11-20 07:14:00,12480.94,E-commerce (CIB / Edahabia),Accepted,Travel & Hospitality

@@ -52,7 +52,9 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
         '/merchant/simulator/',
         data: {
           'volume_pct': _volumePct,
+          'growth_rate_pct': _volumePct,
           'ticket_delta': _ticketDelta,
+          'avg_amount_delta_dzd': _ticketDelta,
         },
       );
       if (res.statusCode == 200) {
@@ -89,12 +91,12 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
       return AppErrorState(message: _error!, onRetry: _runSimulation);
     }
 
-    final baseKpis = _simResult?['baseline_kpis'] ?? {};
-    final simKpis = _simResult?['simulated_kpis'] ?? {};
+    final baseKpis = _simResult?['baseline_kpis'] ?? _simResult?['baseline'] ?? {};
+    final simKpis = _simResult?['simulated_kpis'] ?? _simResult?['simulated'] ?? {};
     final deltas = _simResult?['deltas'] ?? {};
-    final summary = _simResult?['summary_sentence'] ?? '';
+    final summary = _simResult?['summary_sentence'] ?? _simResult?['summary'] ?? '';
     final goalImpact = _simResult?['goal_impact'];
-    final projections = (_simResult?['projections'] as List?) ?? [];
+    final projections = (_simResult?['projections'] as List?) ?? (_simResult?['series'] as List?) ?? [];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),

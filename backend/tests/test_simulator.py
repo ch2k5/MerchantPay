@@ -82,3 +82,18 @@ class TestSimulatorServices:
         assert base["base_count"] == 1
         assert base["base_revenue"] == Decimal("3000.00")
         assert base["base_avg"] == Decimal("3000.00")
+
+    @pytest.mark.django_db
+    def test_simulator_api_with_volume_pct_and_ticket_delta(self, api_client, merchant_user):
+        """Test POST /api/v1/merchant/simulator/ accepts volume_pct and ticket_delta aliases."""
+        api_client.force_authenticate(user=merchant_user)
+        payload = {
+            "volume_pct": 20.0,
+            "ticket_delta": 500.0,
+        }
+        res = api_client.post("/api/v1/merchant/simulator/", data=payload, format="json")
+        assert res.status_code == 200
+        assert "baseline_kpis" in res.data
+        assert "simulated_kpis" in res.data
+        assert "deltas" in res.data
+        assert "projections" in res.data

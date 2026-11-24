@@ -35,7 +35,13 @@ class TransactionFilter(django_filters.FilterSet):
         if not value:
             return queryset
         val = value.strip()
-        q = Q(reference__icontains=val) | Q(card_last4__icontains=val) | Q(terminal_id__icontains=val)
+        q = (
+            Q(reference__icontains=val)
+            | Q(card_last4__icontains=val)
+            | Q(terminal_id__icontains=val)
+            | Q(merchant__business_name__icontains=val)
+            | Q(merchant__merchant_code__icontains=val)
+        )
         try:
             amt = float(val.replace(" ", "").replace(",", "."))
             q |= Q(amount=amt)

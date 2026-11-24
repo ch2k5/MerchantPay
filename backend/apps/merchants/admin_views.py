@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import django_filters
+from django.utils import timezone
 from django.db.models import Case, Count, DecimalField, F, IntegerField, Q, Sum, When
 from django.db.models.functions import Coalesce
 from rest_framework import generics, serializers, status
@@ -13,6 +14,7 @@ from apps.accounts.serializers import (
     MerchantDetailSerializer,
 )
 from apps.analytics.services import (
+    compute_admin_platform_analytics,
     compute_channel_distribution,
     compute_kpis,
     compute_payment_transactions_summary,
@@ -51,6 +53,10 @@ from apps.risk.serializers import (
     RiskFlagListSerializer,
 )
 from apps.risk.services import scan_all_merchants_risk
+from apps.transactions.export import (
+    export_transactions_csv,
+    export_transactions_pdf,
+)
 from apps.transactions.filters import TransactionFilter
 from apps.transactions.models import Transaction
 from apps.transactions.serializers import TransactionSerializer
@@ -178,6 +184,79 @@ class AdminDashboardView(APIView):
                 "summary_tables": compute_payment_transactions_summary(qs_tx),
             }
         )
+
+
+class AdminAnalyticsView(APIView):
+    """
+    Dedicated comprehensive platform-wide analytics for SATIM Administrators.
+    Provides 4 core pillars with interactive visualizations:
+    1. Vue d'ensemble (Totals, Volume, Growth, Comparison)
+    2. Analyse temporelle (Granularity trends, Heatmap matrix, Peak slots)
+    3. Analyse des commerçants (Ranking, Category breakdown, Anomaly detection)
+    4. Analyse des transactions (Status distribution, Channel distribution, Amount brackets, Rejections)
+    """
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        preset = request.query_params.get("preset", "30d")
+        c_from, c_to, p_from, p_to = resolve_period_range(
+            preset=preset,
+            date_from_str=request.query_params.get("date_from"),
+            date_to_str=request.query_params.get("date_to"),
+        )
+        raw_granularity = request.query_params.get("granularity", "day").lower()
+        if raw_granularity in ["daily", "day"]:
+            granularity = "day"
+        elif raw_granularity in ["weekly", "week"]:
+            granularity = "week"
+        elif raw_granularity in ["monthly", "month"]:
+            granularity = "month"
+        elif raw_granularity in ["hourly", "hour"]:
+            granularity = "hour"
+        else:
+            granularity = "day"
+
+        base_qs = Transaction.objects.all().select_related("merchant")
+        filtered_qs = TransactionFilter(request.query_params, queryset=base_qs).qs
+        curr_qs = filtered_qs.filter(transaction_date__range=(c_from, c_to))
+        prev_qs = filtered_qs.filter(transaction_date__range=(p_from, p_to))
+
+        analytics_data = compute_admin_platform_analytics(
+            queryset=curr_qs,
+            prev_queryset=prev_qs,
+            date_from=c_from,
+            date_to=c_to,
+            granularity=granularity,
+        )
+        analytics_data["period"] = {
+            "preset": preset,
+            "current_from": c_from,
+            "current_to": c_to,
+            "previous_from": p_from,
+            "previous_to": p_to,
+        }
+        return Response(analytics_data)
+
+
+class AdminAnalyticsExportView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        fmt = request.query_params.get("format", "csv").lower()
+        preset = request.query_params.get("preset", "30d")
+        c_from, c_to, _, _ = resolve_period_range(
+            preset=preset,
+            date_from_str=request.query_params.get("date_from"),
+            date_to_str=request.query_params.get("date_to"),
+        )
+        base_qs = Transaction.objects.all().select_related("merchant")
+        filtered_qs = TransactionFilter(request.query_params, queryset=base_qs).qs
+        qs = filtered_qs.filter(transaction_date__range=(c_from, c_to)).order_by("-transaction_date")
+
+        filename = f"satim_statistiques_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+        if fmt == "pdf":
+            return export_platform_report_pdf(c_from, c_to, filename=f"{filename}.pdf")
+        return export_platform_report_csv(c_from, c_to, filename=f"{filename}.csv")
 
 
 # 2. Merchants Management
@@ -357,6 +436,29 @@ class AdminTransactionDetailView(APIView):
         linked_flags = tx.risk_flags.all()
         data["risk_flags"] = RiskFlagListSerializer(linked_flags, many=True).data
         return Response(data)
+
+
+class AdminTransactionExportView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        fmt = request.query_params.get("format", "csv").lower()
+        filterset = TransactionFilter(
+            request.query_params,
+            queryset=Transaction.objects.all().select_related("merchant"),
+        )
+        if not filterset.is_valid():
+            return Response(filterset.errors, status=status.HTTP_400_BAD_REQUEST)
+        qs = filterset.qs.order_by("-transaction_date")
+
+        filename = f"satim_transactions_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+        if fmt == "pdf":
+            return export_transactions_pdf(
+                qs,
+                filters_desc="Toutes les opérations réseau consolidées (CIB & EDAHABIA)",
+                filename=f"{filename}.pdf",
+            )
+        return export_transactions_csv(qs, filename=f"{filename}.csv")
 
 
 # 4. Risk & Fraud Management

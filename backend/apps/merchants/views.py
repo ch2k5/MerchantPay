@@ -18,7 +18,7 @@ from apps.analytics.services import (
 )
 from apps.audit.services import record_audit
 from apps.core.dates import parse_date_param, resolve_period_range
-from apps.core.enums import AuditAction
+from apps.core.enums import ACCEPTED_STATUSES, AuditAction
 from apps.core.permissions import IsMerchant
 from apps.core.utils import format_dzd
 from apps.simulator.models import SimulationScenario
@@ -325,6 +325,111 @@ class MerchantAnalyticsVolumeView(APIView):
         return Response(kpis)
 
 
+class MerchantAnalyticsView(APIView):
+    """
+    Consolidated merchant analytics endpoint providing:
+    - trends (daily/weekly/monthly)
+    - channel_distribution (with share_pct and revenue)
+    - heatmap (with flat matrix of 7x24 cells, peak_slots, low_slots, and 2d matrix)
+    - kpis for the active period
+    """
+    permission_classes = [IsMerchant]
+
+    def get(self, request):
+        merchant = request.user.merchant
+        raw_granularity = request.query_params.get("granularity", "day").lower()
+        if raw_granularity in ["daily", "day"]:
+            granularity = "day"
+        elif raw_granularity in ["weekly", "week"]:
+            granularity = "week"
+        elif raw_granularity in ["monthly", "month"]:
+            granularity = "month"
+        else:
+            granularity = "day"
+
+        preset = request.query_params.get("preset", "30d")
+        c_from, c_to, p_from, p_to = resolve_period_range(
+            preset=preset,
+            date_from_str=request.query_params.get("date_from"),
+            date_to_str=request.query_params.get("date_to"),
+        )
+
+        qs = merchant.transactions.filter(transaction_date__range=(c_from, c_to))
+        trends = compute_trends(qs, c_from, c_to, granularity=granularity)
+        for t in trends:
+            if "period_label" not in t:
+                t["period_label"] = t.get("label") or t.get("date", "")
+
+        channel_dist = compute_channel_distribution(qs)
+        for ch in channel_dist.get("channels", []):
+            if "channel_display" not in ch:
+                ch["channel_display"] = ch.get("label", ch.get("channel"))
+            if "revenue" not in ch:
+                ch["revenue"] = ch.get("accepted_amount", Decimal("0.00"))
+            if "share_pct" not in ch:
+                ch["share_pct"] = ch.get("amount_pct", 0.0)
+
+        heatmap = compute_heatmap(qs)
+        day_names = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+        matrix_2d = heatmap.get("matrix", [[0] * 24 for _ in range(7)])
+
+        rev_matrix = [[Decimal("0.00") for _ in range(24)] for _ in range(7)]
+        accepted_txs = qs.filter(transaction_status__in=ACCEPTED_STATUSES).values("transaction_date", "amount")
+        for tx in accepted_txs:
+            dt = tx["transaction_date"].astimezone(ALGIERS_TZ)
+            w_idx = (dt.weekday() + 1) % 7
+            h_idx = dt.hour
+            rev_matrix[w_idx][h_idx] += tx["amount"]
+
+        flat_matrix = []
+        for d in range(7):
+            for h in range(24):
+                flat_matrix.append({
+                    "day_index": d,
+                    "day_name": day_names[d],
+                    "hour": h,
+                    "count": matrix_2d[d][h] if d < len(matrix_2d) and h < len(matrix_2d[d]) else 0,
+                    "revenue": float(rev_matrix[d][h]),
+                })
+
+        peak_slot = heatmap.get("peak_slot") or {"day": "Dimanche", "day_name": "Dimanche", "day_index": 0, "hour": 12, "count": 0}
+        if "day_name" not in peak_slot:
+            peak_slot["day_name"] = peak_slot.get("day", "Dimanche")
+
+        low_slot = heatmap.get("low_slot") or {"day": "Dimanche", "day_name": "Dimanche", "day_index": 0, "hour": 8, "count": 0}
+        if "day_name" not in low_slot:
+            low_slot["day_name"] = low_slot.get("day", "Dimanche")
+
+        peak_slots = [peak_slot] if peak_slot.get("count", 0) > 0 else []
+        low_slots = [low_slot]
+
+        kpis = compute_kpis(qs)
+
+        return Response({
+            "period": {
+                "preset": preset,
+                "current_from": c_from,
+                "current_to": c_to,
+                "previous_from": p_from,
+                "previous_to": p_to,
+            },
+            "kpis": kpis,
+            "trends": trends,
+            "granularity": granularity,
+            "channel_distribution": channel_dist,
+            "heatmap": {
+                "matrix": flat_matrix,
+                "matrix_2d": matrix_2d,
+                "peak_slots": peak_slots,
+                "low_slots": low_slots,
+                "peak_slot": peak_slot,
+                "low_slot": low_slot,
+                "top_3_hours": heatmap.get("top_3_hours", []),
+                "top_3_weekdays": heatmap.get("top_3_weekdays", []),
+            },
+        })
+
+
 class MerchantAlertListView(generics.ListAPIView):
     permission_classes = [IsMerchant]
     serializer_class = MerchantAlertSerializer
@@ -421,12 +526,21 @@ class MerchantSimulatorRunView(APIView):
             period=period,
         )
 
-        # Optional persistence
+        # Optional persistence with JSON-serializable representation
+        def _make_json_safe(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            if isinstance(obj, dict):
+                return {k: _make_json_safe(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_make_json_safe(v) for v in obj]
+            return obj
+
         SimulationScenario.objects.create(
             merchant=merchant,
             growth_rate=growth_rate,
             avg_amount_delta=avg_delta,
-            result=sim_res,
+            result=_make_json_safe(sim_res),
         )
 
         return Response(sim_res)

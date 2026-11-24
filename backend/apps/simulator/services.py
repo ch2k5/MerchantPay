@@ -13,17 +13,21 @@ def get_simulator_baseline(merchant, now: datetime | None = None) -> dict:
     """
     Computes baseline from the last 30 full days of the merchant:
     base_count = accepted count, base_avg = average accepted ticket, base_revenue.
+    If no transactions exist in the exact 30-day window, falls back to available accepted transactions.
     """
     now = (now or timezone.now()).astimezone(ALGIERS_TZ)
     today = now.date()
     start_date = today - timedelta(days=30)
     start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=ALGIERS_TZ)
-    end_dt = datetime.combine(today - timedelta(days=1), datetime.max.time(), tzinfo=ALGIERS_TZ)
+    end_dt = datetime.combine(today, datetime.max.time(), tzinfo=ALGIERS_TZ)
 
     qs = merchant.transactions.filter(
         transaction_date__range=(start_dt, end_dt),
         transaction_status__in=ACCEPTED_STATUSES,
     )
+    if not qs.exists():
+        qs = merchant.transactions.filter(transaction_status__in=ACCEPTED_STATUSES)
+
     kpis = compute_kpis(qs)
 
     base_count = kpis["accepted_count"]
@@ -34,6 +38,9 @@ def get_simulator_baseline(merchant, now: datetime | None = None) -> dict:
         "base_count": base_count,
         "base_revenue": base_revenue,
         "base_avg": base_avg,
+        "count": base_count,
+        "revenue": base_revenue,
+        "avg_ticket": base_avg,
         "period_days": 30,
         "monthly_goal": merchant.monthly_goal,
     }
@@ -98,32 +105,61 @@ def run_simulation(
     series = []
     base_point = float(base_revenue) / 12.0
     sim_point = float(sim_revenue) / 12.0
+    projections = []
     for i in range(1, 13):
         # minor smooth variation for chart display
         variation_factor = 1.0 + (0.05 * (i % 3 - 1))
-        series.append(
+        act_val = round(base_point * variation_factor, 2)
+        sim_val = round(sim_point * variation_factor, 2)
+        projections.append(
             {
                 "point": i,
                 "label": f"S{i}" if period == "month" else f"M{i}",
-                "actual": round(base_point * variation_factor, 2),
-                "simulated": round(sim_point * variation_factor, 2),
+                "actual": act_val,
+                "baseline": act_val,
+                "simulated": sim_val,
             }
         )
 
-    return {
-        "baseline": {
-            "count": base_count,
-            "avg_ticket": base_avg,
-            "revenue": base_revenue,
-        },
-        "simulated": {
-            "count": sim_count,
-            "avg_ticket": sim_avg,
-            "revenue": sim_revenue,
-        },
+    base_kpis = {
+        "count": base_count,
+        "avg_ticket": base_avg,
+        "revenue": base_revenue,
+    }
+    sim_kpis = {
+        "count": sim_count,
+        "avg_ticket": sim_avg,
+        "revenue": sim_revenue,
+    }
+    deltas_map = {
+        "revenue_delta": delta_abs,
+        "revenue_delta_pct": delta_pct,
         "delta_abs": delta_abs,
         "delta_pct": delta_pct,
-        "goal_impact": goal_impact,
+        "count_delta": sim_count - base_count,
+        "avg_ticket_delta": sim_avg - base_avg,
+    }
+
+    formatted_goal = None
+    if goal_impact:
+        formatted_goal = {
+            **goal_impact,
+            "goal_amount": goal_impact["goal"],
+            "baseline_attainment_pct": goal_impact["actual_progress_pct"],
+            "simulated_attainment_pct": goal_impact["simulated_progress_pct"],
+        }
+
+    return {
+        "baseline": base_kpis,
+        "baseline_kpis": base_kpis,
+        "simulated": sim_kpis,
+        "simulated_kpis": sim_kpis,
+        "delta_abs": delta_abs,
+        "delta_pct": delta_pct,
+        "deltas": deltas_map,
+        "goal_impact": formatted_goal,
         "summary": summary_sentence,
-        "series": series,
+        "summary_sentence": summary_sentence,
+        "series": projections,
+        "projections": projections,
     }

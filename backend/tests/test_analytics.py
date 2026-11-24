@@ -219,3 +219,23 @@ class TestAnalyticsServices:
         assert "low_slot" in heatmap
         assert len(heatmap["top_3_hours"]) == 3
         assert len(heatmap["top_3_weekdays"]) == 3
+
+    def test_merchant_analytics_api(self, api_client, merchant_user):
+        """Test GET /api/v1/merchant/analytics/ with preset and granularity."""
+        api_client.force_authenticate(user=merchant_user)
+        res = api_client.get("/api/v1/merchant/analytics/?preset=30d&granularity=daily")
+        assert res.status_code == 200
+        assert "trends" in res.data
+        assert "channel_distribution" in res.data
+        assert "heatmap" in res.data
+        assert "matrix" in res.data["heatmap"]
+
+    def test_admin_analytics_api(self, api_client, admin_user):
+        """Test GET /api/v1/admin/analytics/ with 4 pillars."""
+        api_client.force_authenticate(user=admin_user)
+        res = api_client.get("/api/v1/admin/analytics/?preset=30d&granularity=day")
+        assert res.status_code == 200
+        assert "overview" in res.data
+        assert "temporal" in res.data
+        assert "merchants_analysis" in res.data
+        assert "transactions_analysis" in res.data
