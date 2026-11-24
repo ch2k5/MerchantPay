@@ -4,7 +4,12 @@ import numpy as np
 import pandas as pd
 
 from apps.core.dates import ALGIERS_TZ
-from apps.core.enums import TransactionStatus
+from apps.core.enums import (
+    ACCEPTED_STATUSES,
+    REJECTED_STATUSES,
+    RiskLevel,
+    TransactionStatus,
+)
 from apps.core.utils import format_dzd
 
 # Risk Rule Codes
@@ -20,7 +25,7 @@ def compute_merchant_baseline_stats(merchant, fallback_category: str | None = No
     Computes statistical baselines for merchant's accepted transactions.
     Minimum 30 historical transactions, otherwise fall back to platform category medians.
     """
-    qs = merchant.transactions.filter(transaction_status=TransactionStatus.ACCEPTED).values(
+    qs = merchant.transactions.filter(transaction_status__in=ACCEPTED_STATUSES).values(
         "amount", "transaction_date"
     )
     df = pd.DataFrame(list(qs))
@@ -36,7 +41,7 @@ def compute_merchant_baseline_stats(merchant, fallback_category: str | None = No
 
         cat_qs = Transaction.objects.filter(
             merchant_category=fallback_category or merchant.merchant_category,
-            transaction_status=TransactionStatus.ACCEPTED,
+            transaction_status__in=ACCEPTED_STATUSES,
         ).values("amount")[:500]
         cat_df = pd.DataFrame(list(cat_qs))
         if len(cat_df) > 0:
@@ -166,7 +171,7 @@ def check_rule_rejection_spike(merchant, now: datetime) -> dict:
         transaction_date__lte=now,
     )
     total_hour = qs_hour.count()
-    rejected_hour = qs_hour.filter(transaction_status=TransactionStatus.REJECTED).count()
+    rejected_hour = qs_hour.filter(transaction_status__in=REJECTED_STATUSES).count()
     rate_hour = (rejected_hour / total_hour * 100.0) if total_hour > 0 else 0.0
 
     # Merchant baseline rejection rate
@@ -175,7 +180,7 @@ def check_rule_rejection_spike(merchant, now: datetime) -> dict:
         transaction_date__gte=now - timedelta(days=30),
     )
     hist_total = hist_qs.count()
-    hist_rejected = hist_qs.filter(transaction_status=TransactionStatus.REJECTED).count()
+    hist_rejected = hist_qs.filter(transaction_status__in=REJECTED_STATUSES).count()
     hist_rate = (hist_rejected / hist_total * 100.0) if hist_total > 0 else 5.0
     baseline_threshold = max(hist_rate * 2.0, 15.0)
 
@@ -261,7 +266,7 @@ def check_rule_history_deviation(merchant, now: datetime) -> dict:
     today_revenue_qs = merchant.transactions.filter(
         transaction_date__gte=today_start,
         transaction_date__lte=now,
-        transaction_status=TransactionStatus.ACCEPTED,
+        transaction_status__in=ACCEPTED_STATUSES,
     ).values("amount")
 
     today_rev = float(sum(item["amount"] for item in today_revenue_qs))
@@ -271,7 +276,7 @@ def check_rule_history_deviation(merchant, now: datetime) -> dict:
     past_txs = merchant.transactions.filter(
         transaction_date__gte=past_start,
         transaction_date__lt=today_start,
-        transaction_status=TransactionStatus.ACCEPTED,
+        transaction_status__in=ACCEPTED_STATUSES,
     ).values("transaction_date", "amount")
 
     days_map = {}

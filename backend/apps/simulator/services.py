@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from apps.analytics.services import compute_kpis
 from apps.core.dates import ALGIERS_TZ
-from apps.core.enums import TransactionStatus
+from apps.core.enums import ACCEPTED_STATUSES, TransactionStatus
 from apps.core.utils import format_dzd
 
 
@@ -22,7 +22,7 @@ def get_simulator_baseline(merchant, now: datetime | None = None) -> dict:
 
     qs = merchant.transactions.filter(
         transaction_date__range=(start_dt, end_dt),
-        transaction_status=TransactionStatus.ACCEPTED,
+        transaction_status__in=ACCEPTED_STATUSES,
     )
     kpis = compute_kpis(qs)
 

@@ -13,7 +13,13 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, TruncDate, TruncMonth, TruncWeek
 
 from apps.core.dates import ALGIERS_TZ
-from apps.core.enums import PaymentChannel, TransactionStatus
+from apps.core.enums import (
+    ACCEPTED_STATUSES,
+    CANCELLED_STATUSES,
+    REFUNDED_STATUSES,
+    REJECTED_STATUSES,
+    PaymentChannel,
+)
 
 
 def compute_kpis(queryset) -> dict:
@@ -24,21 +30,21 @@ def compute_kpis(queryset) -> dict:
     agg = queryset.aggregate(
         total_tx=Count("transaction_id"),
         accepted_cnt=Count(
-            Case(When(transaction_status=TransactionStatus.ACCEPTED, then=1), output_field=IntegerField())
+            Case(When(transaction_status__in=ACCEPTED_STATUSES, then=1), output_field=IntegerField())
         ),
         rejected_cnt=Count(
-            Case(When(transaction_status=TransactionStatus.REJECTED, then=1), output_field=IntegerField())
+            Case(When(transaction_status__in=REJECTED_STATUSES, then=1), output_field=IntegerField())
         ),
         cancelled_cnt=Count(
-            Case(When(transaction_status=TransactionStatus.CANCELLED, then=1), output_field=IntegerField())
+            Case(When(transaction_status__in=CANCELLED_STATUSES, then=1), output_field=IntegerField())
         ),
         refunded_cnt=Count(
-            Case(When(transaction_status=TransactionStatus.REFUNDED, then=1), output_field=IntegerField())
+            Case(When(transaction_status__in=REFUNDED_STATUSES, then=1), output_field=IntegerField())
         ),
         accepted_amt=Coalesce(
             Sum(
                 Case(
-                    When(transaction_status=TransactionStatus.ACCEPTED, then=F("amount")),
+                    When(transaction_status__in=ACCEPTED_STATUSES, then=F("amount")),
                     output_field=DecimalField(),
                 )
             ),
@@ -47,7 +53,7 @@ def compute_kpis(queryset) -> dict:
         rejected_amt=Coalesce(
             Sum(
                 Case(
-                    When(transaction_status=TransactionStatus.REJECTED, then=F("amount")),
+                    When(transaction_status__in=REJECTED_STATUSES, then=F("amount")),
                     output_field=DecimalField(),
                 )
             ),
@@ -56,7 +62,7 @@ def compute_kpis(queryset) -> dict:
         cancelled_amt=Coalesce(
             Sum(
                 Case(
-                    When(transaction_status=TransactionStatus.CANCELLED, then=F("amount")),
+                    When(transaction_status__in=CANCELLED_STATUSES, then=F("amount")),
                     output_field=DecimalField(),
                 )
             ),
@@ -66,7 +72,7 @@ def compute_kpis(queryset) -> dict:
             Sum(
                 Case(
                     When(
-                        transaction_status=TransactionStatus.REFUNDED,
+                        transaction_status__in=REFUNDED_STATUSES,
                         then=Coalesce(F("refunded_amount"), F("amount")),
                     ),
                     output_field=DecimalField(),
@@ -122,19 +128,15 @@ def compute_kpis(queryset) -> dict:
 
 def compute_channel_distribution(queryset) -> dict:
     """
-    Computes CIB and EDAHABIA breakdown (count, accepted amount, and percentages).
+    Computes breakdown across payment channels (count, accepted amount, and percentages).
+    Dynamically supports CIB/EDAHABIA as well as POS, Mobile App, Contactless, Bank Transfer, E-commerce.
     """
-    channels = [PaymentChannel.CIB, PaymentChannel.EDAHABIA]
-    dist = {}
-    total_count = 0
-    total_accepted_amount = Decimal("0.00")
-
     raw_agg = queryset.values("payment_channel").annotate(
         count=Count("transaction_id"),
         accepted_sum=Coalesce(
             Sum(
                 Case(
-                    When(transaction_status=TransactionStatus.ACCEPTED, then=F("amount")),
+                    When(transaction_status__in=ACCEPTED_STATUSES, then=F("amount")),
                     output_field=DecimalField(),
                 )
             ),
@@ -143,14 +145,26 @@ def compute_channel_distribution(queryset) -> dict:
     )
 
     by_channel = {item["payment_channel"]: item for item in raw_agg}
+    found_channels = list(by_channel.keys())
+
+    if not found_channels:
+        channels = [PaymentChannel.CIB, PaymentChannel.EDAHABIA]
+    else:
+        channels = found_channels
+
+    dist = {}
+    total_count = 0
+    total_accepted_amount = Decimal("0.00")
+    channel_labels = dict(PaymentChannel.choices)
 
     for ch in channels:
         item = by_channel.get(ch, {"count": 0, "accepted_sum": Decimal("0.00")})
         c = item["count"]
         amt = item["accepted_sum"]
+        label = channel_labels.get(ch, str(ch))
         dist[ch] = {
             "channel": ch,
-            "label": "Carte CIB" if ch == PaymentChannel.CIB else "Carte EDAHABIA",
+            "label": label,
             "count": c,
             "accepted_amount": amt,
             "count_pct": 0.0,
@@ -172,61 +186,191 @@ def compute_channel_distribution(queryset) -> dict:
     }
 
 
-def compare_kpis(current_kpis: dict, previous_kpis: dict) -> dict:
+def compute_payment_transactions_summary(queryset) -> dict:
     """
-    Produces comparison deltas: current, previous, delta_abs, delta_pct (null if previous == 0).
+    Computes the exact official FINOVIA × ENSM × SATIM summary dashboard tables:
+    1. Breakdown by Transaction Status (Accepted, Declined, Refunded, Cancelled, Total)
+    2. Breakdown by Payment Channel (E-commerce, TPE, Mobile, Contactless, Virement, Total)
     """
-    comparison = {}
-    keys = [
-        "total_transactions",
-        "accepted_count",
-        "rejected_count",
-        "accepted_amount",
-        "rejected_amount",
-        "net_revenue",
-        "success_rate",
-        "rejection_rate",
-        "avg_ticket",
+    total_tx = queryset.count()
+
+    # 1. Breakdown by Transaction Status
+    status_categories = [
+        ("Accepted", ACCEPTED_STATUSES),
+        ("Declined", REJECTED_STATUSES),
+        ("Refunded", REFUNDED_STATUSES),
+        ("Cancelled", CANCELLED_STATUSES),
     ]
 
-    for key in keys:
-        curr = current_kpis.get(key, 0)
-        prev = previous_kpis.get(key, 0)
+    status_rows = []
+    tot_status_cnt = 0
+    tot_status_amt = Decimal("0.00")
 
-        if isinstance(curr, Decimal) or isinstance(prev, Decimal):
-            curr_dec = Decimal(str(curr))
-            prev_dec = Decimal(str(prev))
-            delta_abs = curr_dec - prev_dec
-            delta_pct = None
-            if prev_dec != 0:
-                delta_pct = round(float((delta_abs / prev_dec) * 100), 2)
-        else:
-            curr_float = float(curr)
-            prev_float = float(prev)
-            delta_abs = round(curr_float - prev_float, 2)
-            delta_pct = None
-            if prev_float != 0:
-                delta_pct = round((delta_abs / prev_float) * 100, 2)
+    for label, st_list in status_categories:
+        sub_qs = queryset.filter(transaction_status__in=st_list)
+        cnt = sub_qs.count()
+        tot_amt = sub_qs.aggregate(s=Coalesce(Sum("amount"), Decimal("0.00")))["s"] or Decimal("0.00")
+        avg_amt = round(tot_amt / Decimal(str(cnt)), 2) if cnt > 0 else Decimal("0.00")
+        pct = round((cnt / total_tx * 100), 2) if total_tx > 0 else 0.0
 
-        comparison[key] = {
-            "current": curr,
-            "previous": prev,
-            "delta_abs": delta_abs,
-            "delta_pct": delta_pct,
-        }
+        status_rows.append({
+            "status": label,
+            "count": cnt,
+            "pct_of_total": pct,
+            "total_amount": tot_amt,
+            "avg_amount": avg_amt,
+        })
+        tot_status_cnt += cnt
+        tot_status_amt += tot_amt
 
-    return comparison
+    avg_total = round(tot_status_amt / Decimal(str(tot_status_cnt)), 2) if tot_status_cnt > 0 else Decimal("0.00")
+    status_summary = {
+        "rows": status_rows,
+        "total": {
+            "status": "Total",
+            "count": tot_status_cnt,
+            "pct_of_total": 100.0 if tot_status_cnt > 0 else 0.0,
+            "total_amount": tot_status_amt,
+            "avg_amount": avg_total,
+        },
+    }
+
+    # 2. Breakdown by Payment Channel
+    official_channels = [
+        "E-commerce (CIB / Edahabia)",
+        "TPE / POS Terminal",
+        "Mobile App",
+        "Contactless / NFC",
+        "Bank Transfer / Virement",
+    ]
+    extra_channels = [
+        c for c in queryset.values_list("payment_channel", flat=True).distinct() if c not in official_channels
+    ]
+    all_channels = official_channels + extra_channels
+
+    channel_rows = []
+    tot_chan_cnt = 0
+    tot_chan_amt = Decimal("0.00")
+
+    for ch in all_channels:
+        sub_qs = queryset.filter(payment_channel=ch)
+        cnt = sub_qs.count()
+        tot_amt = sub_qs.aggregate(s=Coalesce(Sum("amount"), Decimal("0.00")))["s"] or Decimal("0.00")
+        avg_amt = round(tot_amt / Decimal(str(cnt)), 2) if cnt > 0 else Decimal("0.00")
+        pct = round((cnt / total_tx * 100), 2) if total_tx > 0 else 0.0
+
+        channel_rows.append({
+            "channel": ch,
+            "count": cnt,
+            "pct_of_total": pct,
+            "total_amount": tot_amt,
+            "avg_amount": avg_amt,
+        })
+        tot_chan_cnt += cnt
+        tot_chan_amt += tot_amt
+
+    channel_summary = {
+        "rows": channel_rows,
+        "total": {
+            "channel": "Total",
+            "count": tot_chan_cnt,
+            "pct_of_total": 100.0 if tot_chan_cnt > 0 else 0.0,
+            "total_amount": tot_chan_amt,
+            "avg_amount": round(tot_chan_amt / Decimal(str(tot_chan_cnt)), 2) if tot_chan_cnt > 0 else Decimal("0.00"),
+        },
+    }
+
+    return {
+        "breakdown_by_status": status_summary,
+        "breakdown_by_channel": channel_summary,
+    }
+
+
+def compare_kpis(current_kpis: dict, previous_kpis: dict) -> dict:
+    """
+    Computes absolute and percentage deltas between current and previous period KPIs.
+    """
+    def _pct_delta(curr, prev):
+        if prev is None or Decimal(str(prev)) == Decimal("0.00"):
+            return None
+        c = Decimal(str(curr))
+        p = Decimal(str(prev))
+        return round(float(((c - p) / p) * 100), 2)
+
+    def _abs_delta(curr, prev):
+        return Decimal(str(curr)) - Decimal(str(prev))
+
+    c_rev = current_kpis["net_revenue"]
+    p_rev = previous_kpis["net_revenue"]
+    revenue_delta = _abs_delta(c_rev, p_rev)
+    revenue_delta_pct = _pct_delta(c_rev, p_rev)
+
+    c_cnt = current_kpis["accepted_count"]
+    p_cnt = previous_kpis["accepted_count"]
+    count_delta = c_cnt - p_cnt
+    count_delta_pct = _pct_delta(c_cnt, p_cnt)
+
+    c_sr = current_kpis["success_rate"]
+    p_sr = previous_kpis["success_rate"]
+    success_rate_delta_pts = round(c_sr - p_sr, 2)
+
+    c_rr = current_kpis["rejection_rate"]
+    p_rr = previous_kpis["rejection_rate"]
+    rejection_rate_delta_pts = round(c_rr - p_rr, 2)
+
+    c_avg = current_kpis["avg_ticket"]
+    p_avg = previous_kpis["avg_ticket"]
+    avg_ticket_delta = _abs_delta(c_avg, p_avg)
+    avg_ticket_delta_pct = _pct_delta(c_avg, p_avg)
+
+    # Opportunity cost of rejections
+    rejection_loss = current_kpis["rejected_amount"]
+
+    return {
+        "net_revenue": {
+            "current": c_rev,
+            "previous": p_rev,
+            "delta_abs": revenue_delta,
+            "delta_pct": revenue_delta_pct,
+        },
+        "accepted_count": {
+            "current": c_cnt,
+            "previous": p_cnt,
+            "delta_abs": count_delta,
+            "delta_pct": count_delta_pct,
+        },
+        "success_rate": {
+            "current": c_sr,
+            "previous": p_sr,
+            "delta_abs": success_rate_delta_pts,
+            "delta_pct": None,
+        },
+        "avg_ticket": {
+            "current": c_avg,
+            "previous": p_avg,
+            "delta_abs": avg_ticket_delta,
+            "delta_pct": avg_ticket_delta_pct,
+        },
+        "revenue_delta": revenue_delta,
+        "revenue_delta_pct": revenue_delta_pct,
+        "count_delta": count_delta,
+        "count_delta_pct": count_delta_pct,
+        "success_rate_delta_pts": success_rate_delta_pts,
+        "rejection_rate_delta_pts": rejection_rate_delta_pts,
+        "avg_ticket_delta": avg_ticket_delta,
+        "avg_ticket_delta_pct": avg_ticket_delta_pct,
+        "rejection_loss": rejection_loss,
+    }
 
 
 def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity: str = "day") -> list[dict]:
     """
-    Groups accepted revenue and counts by day / week / month with zero-filled gaps.
-    Dates are handled in Africa/Algiers timezone.
+    Returns zero-gap time series of accepted revenue, transaction count, rejection count.
+    Granularity can be 'day', 'week', or 'month'.
     """
-    granularity = granularity.lower()
     if granularity == "week":
         trunc_fn = TruncWeek
-        step = timedelta(weeks=1)
+        step = timedelta(days=7)
     elif granularity == "month":
         trunc_fn = TruncMonth
         step = timedelta(days=30)
@@ -242,15 +386,15 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
         .annotate(
             total_count=Count("transaction_id"),
             accepted_count=Count(
-                Case(When(transaction_status=TransactionStatus.ACCEPTED, then=1), output_field=IntegerField())
+                Case(When(transaction_status__in=ACCEPTED_STATUSES, then=1), output_field=IntegerField())
             ),
             rejected_count=Count(
-                Case(When(transaction_status=TransactionStatus.REJECTED, then=1), output_field=IntegerField())
+                Case(When(transaction_status__in=REJECTED_STATUSES, then=1), output_field=IntegerField())
             ),
             revenue=Coalesce(
                 Sum(
                     Case(
-                        When(transaction_status=TransactionStatus.ACCEPTED, then=F("amount")),
+                        When(transaction_status__in=ACCEPTED_STATUSES, then=F("amount")),
                         output_field=DecimalField(),
                     )
                 ),
@@ -305,7 +449,6 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
         elif granularity == "week":
             current_dt += timedelta(days=7)
         else:
-            # next month
             year = current_dt.year + (current_dt.month // 12)
             month = (current_dt.month % 12) + 1
             current_dt = current_dt.replace(year=year, month=month, day=1)
@@ -316,30 +459,22 @@ def compute_trends(queryset, date_from: datetime, date_to: datetime, granularity
 def compute_heatmap(queryset) -> dict:
     """
     7 (weekday) × 24 (hour) matrix of accepted transaction counts.
-    Algeria week: Sunday (index 0 or 6). We map 0=Dimanche, 1=Lundi, ..., 6=Samedi.
-    Identifies peak and low slots (low counts hours inside typical opening time, 08:00–22:00).
+    Algeria week: Sunday (index 0). We map 0=Dimanche, 1=Lundi, ..., 6=Samedi.
     """
-    # Initialize 7x24 matrix with 0
-    # days: 0=Dimanche, 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi
     day_names = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
     matrix = [[0 for _ in range(24)] for _ in range(7)]
 
     # Filter to ACCEPTED
-    accepted_txs = queryset.filter(transaction_status=TransactionStatus.ACCEPTED)
+    accepted_txs = queryset.filter(transaction_status__in=ACCEPTED_STATUSES)
 
-    # Use python iteration over values_list for exact tzinfo hour & weekday
     for tx_dt in accepted_txs.values_list("transaction_date", flat=True).iterator():
         local_dt = tx_dt.astimezone(ALGIERS_TZ)
-        # Python weekday: Mon=0, ..., Sat=5, Sun=6.
-        # Map so Sunday is index 0: (weekday + 1) % 7
         weekday_idx = (local_dt.weekday() + 1) % 7
         hour_idx = local_dt.hour
         matrix[weekday_idx][hour_idx] += 1
 
-    # Find peak slot
     max_val = -1
     peak_slot = {"day": "Dimanche", "hour": 12, "count": 0}
-    # Low slot inside 08:00 - 22:00
     min_val = float("inf")
     low_slot = {"day": "Dimanche", "hour": 8, "count": 0}
 
@@ -354,28 +489,22 @@ def compute_heatmap(queryset) -> dict:
                     min_val = val
                     low_slot = {"day": day_names[d], "day_idx": d, "hour": h, "count": val}
 
-    # Hourly and weekday summaries
     hourly_totals = [sum(matrix[d][h] for d in range(7)) for h in range(24)]
     weekday_totals = [sum(matrix[d]) for d in range(7)]
 
-    # Top 3 hours and top 3 weekdays
     sorted_hours = sorted(range(24), key=lambda h: hourly_totals[h], reverse=True)
-    sorted_days = sorted(range(7), key=lambda d: weekday_totals[d], reverse=True)
+    top_3_hours = [{"hour": h, "count": hourly_totals[h]} for h in sorted_hours[:3]]
 
-    top_3_hours = [
-        {"hour": h, "label": f"{h:02d}h00 - {(h + 1):02d}h00", "count": hourly_totals[h]} for h in sorted_hours[:3]
-    ]
+    sorted_days = sorted(range(7), key=lambda d: weekday_totals[d], reverse=True)
     top_3_weekdays = [{"day": day_names[d], "day_idx": d, "count": weekday_totals[d]} for d in sorted_days[:3]]
-    low_3_hours = [
-        {"hour": h, "label": f"{h:02d}h00 - {(h + 1):02d}h00", "count": hourly_totals[h]} for h in sorted_hours[-3:]
-    ]
 
     return {
         "matrix": matrix,
-        "day_names": day_names,
         "peak_slot": peak_slot,
         "low_slot": low_slot,
+        "hourly_totals": hourly_totals,
+        "weekday_totals": weekday_totals,
         "top_3_hours": top_3_hours,
         "top_3_weekdays": top_3_weekdays,
-        "low_3_hours": low_3_hours,
+        "day_names": day_names,
     }

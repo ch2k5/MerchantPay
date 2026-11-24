@@ -147,7 +147,12 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                   value: _selectedChannel,
                   underline: const SizedBox(),
                   items: const [
-                    DropdownMenuItem(value: 'ALL', child: Text('Tous réseaux')),
+                    DropdownMenuItem(value: 'ALL', child: Text('Tous canaux')),
+                    DropdownMenuItem(value: 'Contactless / NFC', child: Text('Contactless / NFC')),
+                    DropdownMenuItem(value: 'Mobile App', child: Text('Mobile App')),
+                    DropdownMenuItem(value: 'TPE / POS Terminal', child: Text('TPE / POS Terminal')),
+                    DropdownMenuItem(value: 'E-commerce (CIB / Edahabia)', child: Text('E-commerce')),
+                    DropdownMenuItem(value: 'Bank Transfer / Virement', child: Text('Bank Transfer')),
                     DropdownMenuItem(value: 'CIB', child: Text('CIB')),
                     DropdownMenuItem(value: 'EDAHABIA', child: Text('EDAHABIA')),
                   ],
@@ -166,9 +171,12 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
                   underline: const SizedBox(),
                   items: const [
                     DropdownMenuItem(value: 'ALL', child: Text('Tous statuts')),
-                    DropdownMenuItem(value: 'COMPLETED', child: Text('Validées')),
-                    DropdownMenuItem(value: 'REJECTED', child: Text('Rejetées')),
-                    DropdownMenuItem(value: 'PENDING', child: Text('En attente')),
+                    DropdownMenuItem(value: 'Accepted', child: Text('Accepted')),
+                    DropdownMenuItem(value: 'Declined', child: Text('Declined')),
+                    DropdownMenuItem(value: 'Refunded', child: Text('Refunded')),
+                    DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+                    DropdownMenuItem(value: 'COMPLETED', child: Text('Validées (Legacy)')),
+                    DropdownMenuItem(value: 'REJECTED', child: Text('Rejetées (Legacy)')),
                   ],
                   onChanged: (v) {
                     if (v != null) {

@@ -13,6 +13,7 @@ from apps.analytics.services import (
     compute_channel_distribution,
     compute_heatmap,
     compute_kpis,
+    compute_payment_transactions_summary,
     compute_trends,
 )
 from apps.audit.services import record_audit
@@ -138,6 +139,7 @@ class MerchantDashboardView(APIView):
                 "monthly_goal": goal_data,
                 "latest_transactions": latest_txs_data,
                 "latest_alerts": latest_alerts_data,
+                "summary_tables": compute_payment_transactions_summary(qs_curr),
             }
         )
 

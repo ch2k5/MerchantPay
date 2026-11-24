@@ -70,7 +70,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         await TokenStorage.saveUserJson(jsonEncode(user));
         ref.read(authStateProvider.notifier).setLoggedIn(user);
 
-        context.go('/m/dashboard');
+        if (mounted) {
+          context.go('/m/dashboard');
+        }
       }
     } catch (e) {
       setState(() {

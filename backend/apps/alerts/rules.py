@@ -6,7 +6,13 @@ from django.utils import timezone
 from apps.alerts import config
 from apps.analytics.services import compute_channel_distribution, compute_heatmap, compute_kpis
 from apps.core.dates import ALGIERS_TZ
-from apps.core.enums import AlertSeverity, AlertType, TransactionStatus
+from apps.core.enums import (
+    ACCEPTED_STATUSES,
+    AlertSeverity,
+    AlertType,
+    REJECTED_STATUSES,
+    TransactionStatus,
+)
 from apps.core.utils import format_dzd
 
 
@@ -141,7 +147,7 @@ class RejectionSpikeRule(BaseAlertRule):
             from django.db.models import Count
 
             top_reason_qs = (
-                qs_curr.filter(transaction_status=TransactionStatus.REJECTED)
+                qs_curr.filter(transaction_status__in=REJECTED_STATUSES)
                 .values("rejection_reason")
                 .annotate(cnt=Count("transaction_id"))
                 .order_by("-cnt")

@@ -84,7 +84,7 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
         if (_selectedStatus != null) 'status': _selectedStatus,
         if (_selectedChannel != null) 'channel': _selectedChannel,
       });
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.success,
@@ -93,12 +93,14 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
         );
       }
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: AppColors.danger,
-          content: Text("Échec du téléchargement de l'export."),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.danger,
+            content: Text("Échec du téléchargement de l'export."),
+          ),
+        );
+      }
     }
   }
 
@@ -220,10 +222,12 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
                     underline: const SizedBox(),
                     items: const [
                       DropdownMenuItem(value: null, child: Text("Tous les statuts")),
-                      DropdownMenuItem(value: "ACCEPTED", child: Text("Acceptée")),
+                      DropdownMenuItem(value: "Accepted", child: Text("Accepted (Acceptée)")),
+                      DropdownMenuItem(value: "Declined", child: Text("Declined (Refusée)")),
+                      DropdownMenuItem(value: "Refunded", child: Text("Refunded (Remboursée)")),
+                      DropdownMenuItem(value: "Cancelled", child: Text("Cancelled (Annulée)")),
+                      DropdownMenuItem(value: "ACCEPTED", child: Text("Acceptée (CIB/EDAHABIA)")),
                       DropdownMenuItem(value: "REJECTED", child: Text("Rejetée")),
-                      DropdownMenuItem(value: "CANCELLED", child: Text("Annulée")),
-                      DropdownMenuItem(value: "REFUNDED", child: Text("Remboursée")),
                     ],
                     onChanged: (v) {
                       setState(() => _selectedStatus = v);
@@ -233,10 +237,15 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
                   const SizedBox(width: 12),
                   DropdownButton<String>(
                     value: _selectedChannel,
-                    hint: const Text("Toutes les cartes"),
+                    hint: const Text("Tous les canaux"),
                     underline: const SizedBox(),
                     items: const [
-                      DropdownMenuItem(value: null, child: Text("Toutes les cartes")),
+                      DropdownMenuItem(value: null, child: Text("Tous les canaux")),
+                      DropdownMenuItem(value: "Contactless / NFC", child: Text("Contactless / NFC")),
+                      DropdownMenuItem(value: "Mobile App", child: Text("Mobile App")),
+                      DropdownMenuItem(value: "TPE / POS Terminal", child: Text("TPE / POS Terminal")),
+                      DropdownMenuItem(value: "E-commerce (CIB / Edahabia)", child: Text("E-commerce")),
+                      DropdownMenuItem(value: "Bank Transfer / Virement", child: Text("Bank Transfer / Virement")),
                       DropdownMenuItem(value: "CIB", child: Text("Carte CIB")),
                       DropdownMenuItem(value: "EDAHABIA", child: Text("Carte EDAHABIA")),
                     ],

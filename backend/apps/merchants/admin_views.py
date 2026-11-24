@@ -15,12 +15,15 @@ from apps.accounts.serializers import (
 from apps.analytics.services import (
     compute_channel_distribution,
     compute_kpis,
+    compute_payment_transactions_summary,
     compute_trends,
 )
 from apps.audit.models import AuditLog
 from apps.audit.services import record_audit
 from apps.core.dates import resolve_period_range
 from apps.core.enums import (
+    ACCEPTED_STATUSES,
+    REJECTED_STATUSES,
     AuditAction,
     MerchantStatus,
     RiskLevel,
@@ -93,7 +96,7 @@ class AdminDashboardView(APIView):
                     Sum(
                         Case(
                             When(
-                                transactions__transaction_status=TransactionStatus.ACCEPTED,
+                                transactions__transaction_status__in=ACCEPTED_STATUSES,
                                 then=F("transactions__amount"),
                             ),
                             output_field=DecimalField(),
@@ -126,7 +129,7 @@ class AdminDashboardView(APIView):
                 rejected_tx=Count(
                     Case(
                         When(
-                            transactions__transaction_status=TransactionStatus.REJECTED,
+                            transactions__transaction_status__in=REJECTED_STATUSES,
                             then=1,
                         ),
                         output_field=IntegerField(),
@@ -172,6 +175,7 @@ class AdminDashboardView(APIView):
                 "suspicious_summary": flags_summary,
                 "top_merchants_by_revenue": top_revenue_merchants,
                 "top_merchants_by_rejection": top_rejection_merchants,
+                "summary_tables": compute_payment_transactions_summary(qs_tx),
             }
         )
 

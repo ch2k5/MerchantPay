@@ -73,6 +73,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final riskDist = _data!['risk_distribution'] ?? {};
     final topRev = (_data!['top_merchants_by_revenue'] as List?) ?? [];
     final topRej = (_data!['top_merchants_by_rejections'] as List?) ?? [];
+    final summaryTables = _data!['summary_tables'] as Map?;
 
     return RefreshIndicator(
       onRefresh: _fetchDashboard,
@@ -187,6 +188,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       );
               },
             ),
+            if (summaryTables != null) _buildOfficialSummaryTables(summaryTables),
           ],
         ),
       ),
@@ -395,6 +397,194 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfficialSummaryTables(Map tables) {
+    final statusList = (tables['status_breakdown'] as List?) ?? [];
+    final channelList = (tables['channel_breakdown'] as List?) ?? [];
+    final totalSummary = tables['total_summary'] as Map?;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.analytics, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Synthèse Analytique Officielle (Dataset FINOVIA)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink),
+                  ),
+                  Text(
+                    'Ventilation consolidée des 150 transactions par statut et canal de paiement',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 900;
+              final statusWidget = _buildStatusTable(statusList, totalSummary);
+              final channelWidget = _buildChannelTable(channelList, totalSummary);
+
+              return isWide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: statusWidget),
+                        const SizedBox(width: 20),
+                        Expanded(child: channelWidget),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        statusWidget,
+                        const SizedBox(height: 20),
+                        channelWidget,
+                      ],
+                    );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusTable(List statusList, Map? totalSummary) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Répartition par Statut', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink)),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 36,
+              dataRowMinHeight: 32,
+              dataRowMaxHeight: 40,
+              columnSpacing: 16,
+              columns: const [
+                DataColumn(label: Text('Statut', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('% Part', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('Volume Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('Ticket Moyen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              ],
+              rows: [
+                ...statusList.map((row) {
+                  final statusName = row['status'] ?? '-';
+                  Color badgeColor = AppColors.ink;
+                  if (statusName == 'Accepted') badgeColor = AppColors.success;
+                  if (statusName == 'Declined') badgeColor = AppColors.danger;
+                  if (statusName == 'Refunded') badgeColor = AppColors.cibBlue;
+                  if (statusName == 'Cancelled') badgeColor = AppColors.warning;
+
+                  return DataRow(cells: [
+                    DataCell(Text(statusName, style: TextStyle(fontWeight: FontWeight.w600, color: badgeColor, fontSize: 12))),
+                    DataCell(Text('${row['count'] ?? 0}', style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(formatPct((row['pct'] as num?)?.toDouble() ?? 0), style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(formatDzd(row['total_amount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                    DataCell(Text(formatDzd(row['avg_amount'] ?? 0), style: const TextStyle(fontSize: 12))),
+                  ]);
+                }),
+                if (totalSummary != null)
+                  DataRow(
+                    color: WidgetStateProperty.all(AppColors.primary.withValues(alpha: 0.05)),
+                    cells: [
+                      const DataCell(Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary))),
+                      DataCell(Text('${totalSummary['total_count'] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      const DataCell(Text('100,0 %', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      DataCell(Text(formatDzd(totalSummary['total_amount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12))),
+                      DataCell(Text(formatDzd(totalSummary['overall_avg'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelTable(List channelList, Map? totalSummary) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Répartition par Canal de Paiement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink)),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 36,
+              dataRowMinHeight: 32,
+              dataRowMaxHeight: 40,
+              columnSpacing: 16,
+              columns: const [
+                DataColumn(label: Text('Canal de Paiement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('% Part', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text('Volume Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              ],
+              rows: [
+                ...channelList.map((row) {
+                  return DataRow(cells: [
+                    DataCell(Text(row['channel'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                    DataCell(Text('${row['count'] ?? 0}', style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(formatPct((row['pct'] as num?)?.toDouble() ?? 0), style: const TextStyle(fontSize: 12))),
+                    DataCell(Text(formatDzd(row['total_amount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                  ]);
+                }),
+                if (totalSummary != null)
+                  DataRow(
+                    color: WidgetStateProperty.all(AppColors.primary.withValues(alpha: 0.05)),
+                    cells: [
+                      const DataCell(Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary))),
+                      DataCell(Text('${totalSummary['total_count'] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      const DataCell(Text('100,0 %', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      DataCell(Text(formatDzd(totalSummary['total_amount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12))),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

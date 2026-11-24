@@ -22,9 +22,9 @@ class Transaction(models.Model):
     )
     transaction_date = models.DateTimeField(db_index=True)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
-    payment_channel = models.CharField(max_length=20, choices=PaymentChannel.choices)
+    payment_channel = models.CharField(max_length=64, choices=PaymentChannel.choices)
     transaction_status = models.CharField(
-        max_length=20,
+        max_length=32,
         choices=TransactionStatus.choices,
         db_index=True,
     )
@@ -36,7 +36,7 @@ class Transaction(models.Model):
         blank=True,
     )
     card_last4 = models.CharField(max_length=4, default="0000")
-    terminal_id = models.CharField(max_length=32, default="TPE-01")
+    terminal_id = models.CharField(max_length=64, default="TPE-01")
     refunded_amount = models.DecimalField(
         max_digits=14,
         decimal_places=2,

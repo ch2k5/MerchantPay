@@ -46,10 +46,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
         ref.read(authStateProvider.notifier).setLoggedIn(user);
 
-        if (user['role'] == 'ADMIN') {
-          context.go('/a/dashboard');
-        } else {
-          context.go('/m/dashboard');
+        if (mounted) {
+          if (user['role'] == 'ADMIN') {
+            context.go('/a/dashboard');
+          } else {
+            context.go('/m/dashboard');
+          }
         }
       }
     } on DioException catch (e) {

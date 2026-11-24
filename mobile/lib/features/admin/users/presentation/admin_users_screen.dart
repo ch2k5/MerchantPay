@@ -127,12 +127,14 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                       'role': selectedRole,
                     },
                   );
-                  if (res.statusCode == 201) {
+                  if (res.statusCode == 201 && ctx.mounted) {
                     Navigator.pop(ctx);
                     _fetchUsers();
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text("Échec de la création du compte.")));
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text("Échec de la création du compte.")));
+                  }
                 }
               },
               child: const Text('Créer le compte'),
