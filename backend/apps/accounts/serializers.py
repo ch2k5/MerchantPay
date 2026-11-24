@@ -137,6 +137,10 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class AdminUserManagementSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=False)
+    first_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    last_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    role = serializers.CharField(required=False, allow_blank=True)
+    admin_level = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -144,17 +148,44 @@ class AdminUserManagementSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
+            "first_name",
+            "last_name",
             "role",
             "admin_level",
             "is_active",
             "created_at",
             "password",
         ]
+        extra_kwargs = {
+            "full_name": {"required": False},
+            "role": {"required": False},
+        }
+
+    def validate(self, attrs):
+        raw_role = attrs.get("role")
+        if raw_role in [AdminLevel.SUPER_ADMIN, AdminLevel.ANALYST, AdminLevel.VIEWER, "SUPER_ADMIN", "ANALYST", "VIEWER"]:
+            attrs["admin_level"] = str(raw_role)
+            attrs["role"] = UserRole.ADMIN
+        elif not attrs.get("role"):
+            attrs["role"] = UserRole.ADMIN
+
+        if not attrs.get("full_name"):
+            first = attrs.pop("first_name", "").strip()
+            last = attrs.pop("last_name", "").strip()
+            name = f"{first} {last}".strip()
+            attrs["full_name"] = name if name else attrs.get("email", "Administrateur SATIM")
+        else:
+            attrs.pop("first_name", None)
+            attrs.pop("last_name", None)
+
+        if "admin_level" not in attrs or not attrs["admin_level"]:
+            attrs["admin_level"] = AdminLevel.VIEWER
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
         validated_data["role"] = UserRole.ADMIN
-        if "admin_level" not in validated_data:
+        if "admin_level" not in validated_data or not validated_data["admin_level"]:
             validated_data["admin_level"] = AdminLevel.VIEWER
         user = User.objects.create_user(**validated_data)
         if password:

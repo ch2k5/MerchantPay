@@ -51,6 +51,10 @@ urlpatterns = [
     path("transactions/export/", AdminTransactionExportView.as_view(), name="admin-transactions-export"),
     path("transactions/<uuid:pk>/", AdminTransactionDetailView.as_view(), name="admin-transactions-detail"),
     # Risk & Fraud Engine
+    path("risk/", AdminRiskFlagListView.as_view(), name="admin-risk-alias"),
+    path("risk/<uuid:pk>/", AdminRiskFlagDetailView.as_view(), name="admin-risk-detail-alias"),
+    path("risk/<uuid:pk>/status/", AdminRiskFlagStatusView.as_view(), name="admin-risk-status-alias"),
+    path("risk/<uuid:pk>/notes/", AdminRiskFlagNoteCreateView.as_view(), name="admin-risk-notes-alias"),
     path("risk/flags/", AdminRiskFlagListView.as_view(), name="admin-risk-flags-list"),
     path("risk/flags/<uuid:pk>/", AdminRiskFlagDetailView.as_view(), name="admin-risk-flags-detail"),
     path("risk/flags/<uuid:pk>/status/", AdminRiskFlagStatusView.as_view(), name="admin-risk-flags-status"),
@@ -63,6 +67,7 @@ urlpatterns = [
     path("reports/merchants/", AdminReportMerchantsView.as_view(), name="admin-reports-merchants"),
     path("reports/risk/", AdminReportRiskView.as_view(), name="admin-reports-risk"),
     # Audit Logs (SUPER_ADMIN only)
+    path("audit/", AdminAuditLogListView.as_view(), name="admin-audit-alias"),
     path("audit-logs/", AdminAuditLogListView.as_view(), name="admin-audit-logs"),
     # Admin Users & Roles (SUPER_ADMIN only)
     path("users/", AdminUserListCreateView.as_view(), name="admin-users-list"),

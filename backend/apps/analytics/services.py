@@ -781,10 +781,17 @@ def compute_admin_platform_analytics(
         },
     }
 
+    # Statistical distribution & outlier boxplot analysis across platform transactions
+    from apps.analytics.statistics import compute_fraud_statistical_analytics, compute_statistical_summary
+    stats_data = compute_statistical_summary(queryset)
+    fraud_stats = compute_fraud_statistical_analytics(queryset)
+    transactions_analysis["statistical_distribution"] = stats_data
+
     return {
         "overview": overview,
         "temporal": temporal,
         "merchants_analysis": merchants_analysis,
         "transactions_analysis": transactions_analysis,
+        "fraud_analytics": fraud_stats,
     }
 

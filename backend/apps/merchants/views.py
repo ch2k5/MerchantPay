@@ -17,7 +17,7 @@ from apps.analytics.services import (
     compute_trends,
 )
 from apps.audit.services import record_audit
-from apps.core.dates import parse_date_param, resolve_period_range
+from apps.core.dates import ALGIERS_TZ, parse_date_param, resolve_period_range
 from apps.core.enums import ACCEPTED_STATUSES, AuditAction
 from apps.core.permissions import IsMerchant
 from apps.core.renderers import IgnoreClientContentNegotiation, PassthroughRenderer
@@ -406,6 +406,10 @@ class MerchantAnalyticsView(APIView):
 
         kpis = compute_kpis(qs)
 
+        # Statistical distributions & outliers
+        from apps.analytics.statistics import compute_statistical_summary
+        stats = compute_statistical_summary(qs)
+
         return Response({
             "period": {
                 "preset": preset,
@@ -418,6 +422,7 @@ class MerchantAnalyticsView(APIView):
             "trends": trends,
             "granularity": granularity,
             "channel_distribution": channel_dist,
+            "statistics": stats,
             "heatmap": {
                 "matrix": flat_matrix,
                 "matrix_2d": matrix_2d,

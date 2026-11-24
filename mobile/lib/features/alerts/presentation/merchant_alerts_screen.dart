@@ -53,7 +53,7 @@ class _MerchantAlertsScreenState extends ConsumerState<MerchantAlertsScreen> {
     }
   }
 
-  Future<void> _markAsRead(int id) async {
+  Future<void> _markAsRead(dynamic id) async {
     try {
       final client = ref.read(apiClientProvider);
       final res = await client.post('/merchant/alerts/$id/read/');

@@ -14,6 +14,7 @@ from apps.accounts.serializers import (
     MerchantDetailSerializer,
 )
 from apps.analytics.services import (
+    compare_kpis,
     compute_admin_platform_analytics,
     compute_channel_distribution,
     compute_kpis,
@@ -88,6 +89,11 @@ class AdminDashboardView(APIView):
         channels = compute_channel_distribution(qs_tx)
         trends = compute_trends(qs_tx, c_from, c_to, granularity="day")
 
+        # Previous period comparison
+        prev_qs_tx = Transaction.objects.filter(transaction_date__range=(p_from, p_to))
+        prev_kpis = compute_kpis(prev_qs_tx)
+        comp = compare_kpis(kpis, prev_kpis)
+
         # Open risk flags by level
         open_flags = RiskFlag.objects.filter(status__in=[RiskStatus.NEW, RiskStatus.UNDER_INVESTIGATION])
         flags_summary = {
@@ -121,10 +127,13 @@ class AdminDashboardView(APIView):
             {
                 "id": str(m.id),
                 "name": m.business_name,
+                "business_name": m.business_name,
                 "merchant_code": m.merchant_code,
                 "category": m.merchant_category,
+                "mcc_display": m.merchant_category,
                 "wilaya": m.wilaya,
                 "revenue": m.rev,
+                "count": m.tx_count,
                 "tx_count": m.tx_count,
             }
             for m in merchants_revenue
@@ -155,14 +164,35 @@ class AdminDashboardView(APIView):
                 {
                     "id": str(m.id),
                     "name": m.business_name,
+                    "business_name": m.business_name,
                     "merchant_code": m.merchant_code,
                     "category": m.merchant_category,
+                    "mcc_display": m.merchant_category,
                     "wilaya": m.wilaya,
                     "total_tx": m.total_tx,
+                    "total_count": m.total_tx,
                     "rejected_tx": m.rejected_tx,
+                    "rejected_count": m.rejected_tx,
                     "rejection_rate": rate,
                 }
             )
+
+        kpi_dict = {
+            "total_volume": kpis["accepted_amount"],
+            "transaction_count": kpis["total_transactions"],
+            "success_rate": kpis["success_rate"],
+            "rejection_rate": kpis["rejection_rate"],
+            "active_merchants_count": active_merchants,
+            "total_merchants_count": total_merchants,
+            "net_revenue": kpis["net_revenue"],
+            "accepted_amount": kpis["accepted_amount"],
+            "total_transactions": kpis["total_transactions"],
+        }
+        comparison_dict = {
+            "volume_delta_pct": comp.get("net_revenue", {}).get("delta_pct"),
+            "count_delta_pct": comp.get("accepted_count", {}).get("delta_pct"),
+            **comp,
+        }
 
         return Response(
             {
@@ -172,6 +202,9 @@ class AdminDashboardView(APIView):
                     "active": active_merchants,
                     "inactive": inactive_merchants,
                 },
+                "kpis": kpi_dict,
+                "comparison": comparison_dict,
+                "risk_distribution": flags_summary,
                 "platform_volume": {
                     "total_transactions": kpis["total_transactions"],
                     "accepted_amount": kpis["accepted_amount"],
@@ -183,6 +216,7 @@ class AdminDashboardView(APIView):
                 "activity_trend": trends,
                 "suspicious_summary": flags_summary,
                 "top_merchants_by_revenue": top_revenue_merchants,
+                "top_merchants_by_rejections": top_rejection_merchants,
                 "top_merchants_by_rejection": top_rejection_merchants,
                 "summary_tables": compute_payment_transactions_summary(qs_tx),
             }
@@ -322,17 +356,7 @@ class AdminMerchantActivationView(APIView):
 
     def post(self, request, pk, action_type):
         action_type = action_type.lower()
-        if action_type not in ["activate", "deactivate"]:
-            return Response(
-                {"code": "INVALID_ACTION", "message": "Action invalide."}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        reason = request.data.get("reason", "").strip()
-        if not reason:
-            return Response(
-                {"code": "MISSING_REASON", "message": "Le motif de l'action est obligatoire."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        reason = request.data.get("reason", "").strip() or "Modification de statut par l'administrateur SATIM"
 
         try:
             merchant = Merchant.objects.get(pk=pk)
@@ -342,7 +366,18 @@ class AdminMerchantActivationView(APIView):
             )
 
         old_status = merchant.status
-        new_status = MerchantStatus.ACTIVE if action_type == "activate" else MerchantStatus.INACTIVE
+
+        if action_type in ["toggle-active", "toggle"]:
+            new_status = MerchantStatus.INACTIVE if merchant.status == MerchantStatus.ACTIVE else MerchantStatus.ACTIVE
+            action_type = "deactivate" if new_status == MerchantStatus.INACTIVE else "activate"
+        elif action_type == "activate":
+            new_status = MerchantStatus.ACTIVE
+        elif action_type == "deactivate":
+            new_status = MerchantStatus.INACTIVE
+        else:
+            return Response(
+                {"code": "INVALID_ACTION", "message": "Action invalide."}, status=status.HTTP_400_BAD_REQUEST
+            )
         merchant.status = new_status
         merchant.save()
 
@@ -382,6 +417,8 @@ class AdminMerchantStatsView(APIView):
             return Response(
                 {"code": "NOT_FOUND", "message": "Commerçant introuvable."}, status=status.HTTP_404_NOT_FOUND
             )
+
+        old_status = merchant.status
 
         c_from, c_to, p_from, p_to = resolve_period_range(
             preset=request.query_params.get("preset", "30d"),
@@ -510,6 +547,9 @@ class AdminRiskFlagStatusView(APIView):
 
     permission_classes = [IsAnalystOrAbove]
 
+    def post(self, request, pk):
+        return self.patch(request, pk)
+
     def patch(self, request, pk):
         try:
             flag = RiskFlag.objects.get(pk=pk)
@@ -518,7 +558,13 @@ class AdminRiskFlagStatusView(APIView):
                 {"code": "NOT_FOUND", "message": "Signalement introuvable."}, status=status.HTTP_404_NOT_FOUND
             )
 
-        new_status = request.data.get("status")
+        raw_status = request.data.get("status")
+        status_map = {
+            "UNDER_REVIEW": RiskStatus.UNDER_INVESTIGATION,
+            "CONFIRMED": RiskStatus.CONFIRMED_SUSPICIOUS,
+            "DISMISSED": RiskStatus.FALSE_POSITIVE,
+        }
+        new_status = status_map.get(raw_status, raw_status)
         if not new_status or new_status not in RiskStatus.values:
             return Response(
                 {"code": "INVALID_STATUS", "message": f"Statut invalide. Choix possibles : {RiskStatus.values}"},
@@ -529,6 +575,15 @@ class AdminRiskFlagStatusView(APIView):
         flag.status = new_status
         flag.save()
 
+        # If a note is attached in status update payload
+        note_text = (request.data.get("note") or "").strip()
+        if note_text:
+            InvestigationNote.objects.create(
+                risk_flag=flag,
+                author=request.user,
+                text=note_text,
+            )
+
         record_audit(
             request=request,
             actor=request.user,
@@ -536,7 +591,7 @@ class AdminRiskFlagStatusView(APIView):
             target_type="RiskFlag",
             target_id=str(flag.id),
             before={"status": old_status},
-            after={"status": new_status},
+            after={"status": new_status, "note": note_text[:100] if note_text else None},
         )
 
         return Response(RiskFlagDetailSerializer(flag).data)
@@ -553,7 +608,7 @@ class AdminRiskFlagNoteCreateView(APIView):
                 {"code": "NOT_FOUND", "message": "Signalement introuvable."}, status=status.HTTP_404_NOT_FOUND
             )
 
-        text = request.data.get("text", "").strip()
+        text = (request.data.get("text") or request.data.get("note") or "").strip()
         if not text:
             return Response(
                 {"code": "EMPTY_NOTE", "message": "Le texte de la note ne peut pas être vide."},

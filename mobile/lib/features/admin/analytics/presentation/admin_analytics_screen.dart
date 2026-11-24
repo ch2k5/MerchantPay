@@ -1,11 +1,12 @@
+import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/file_saver.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/common_widgets.dart';
-import '../../../../core/widgets/kpi_card.dart';
 
 class AdminAnalyticsScreen extends ConsumerStatefulWidget {
   const AdminAnalyticsScreen({super.key});
@@ -74,18 +75,29 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
 
   Future<void> _export(String format) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Génération du rapport d'analyses $format...")),
+      SnackBar(content: Text("Génération de l'export statistique $format...")),
     );
     try {
       final client = ref.read(apiClientProvider);
-      final res = await client.get(
-        '/admin/analytics/export/',
+      final res = await client.dio.get<List<int>>(
+        '/admin/reports/generate/',
         queryParameters: {
+          'report_type': 'MONTHLY_VOLUME',
           'format': format,
           'preset': _selectedPreset,
         },
       );
-      if (res.statusCode == 200 && mounted) {
+      if (res.statusCode == 200 && res.data != null && mounted) {
+        final bytes = res.data!;
+        final mimeType = format == 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+        final filename = 'analyses_statistiques_satim.$format';
+
+        saveFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType: mimeType,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.success,
@@ -118,272 +130,758 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
     final overview = _data?['overview'] ?? {};
     final temporal = _data?['temporal'] ?? {};
     final merchantsAnalysis = _data?['merchants_analysis'] ?? {};
-    final txAnalysis = _data?['transactions_analysis'] ?? {};
+    final transactionsAnalysis = _data?['transactions_analysis'] ?? {};
+    final fraudAnalytics = _data?['fraud_analytics'] ?? {};
 
-    return RefreshIndicator(
-      onRefresh: _fetchAnalytics,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Analyses & Statistiques Réseau',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.ink),
-                    ),
-                    Text(
-                      'Espace analytique consolidé SATIM — CIB & EDAHABIA sur l\'ensemble du territoire',
-                      style: TextStyle(fontSize: 13, color: AppColors.muted),
-                    ),
-                  ],
-                ),
-                Wrap(
-                  spacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _export('csv'),
-                      icon: const Icon(Icons.table_view, size: 16),
-                      label: const Text('Export CSV'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _export('pdf'),
-                      icon: const Icon(Icons.picture_as_pdf, size: 16),
-                      label: const Text('Rapport PDF'),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _fetchAnalytics,
-                      icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('Actualiser'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+    return Scaffold(
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title + Controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Observatoire Statistique & Monétique SATIM',
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.ink),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Supervision globale par représentations graphiques, histogrammes et corrélation du risque',
+                            style: TextStyle(fontSize: 13, color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 16),
+                            label: const Text("Export PDF"),
+                            onPressed: () => _export('pdf'),
+                          ),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.table_chart, size: 16),
+                            label: const Text("Export CSV"),
+                            onPressed: () => _export('csv'),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, color: AppColors.slate),
+                            onPressed: _fetchAnalytics,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
-            // Filter Bar
-            _buildFilterBar(),
-            const SizedBox(height: 20),
+                  // Filters row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _dropdownControl(
+                          label: "Période",
+                          value: _selectedPreset,
+                          items: const [
+                            DropdownMenuItem(value: '7d', child: Text('7 derniers jours')),
+                            DropdownMenuItem(value: '30d', child: Text('30 derniers jours (Mois)')),
+                            DropdownMenuItem(value: '90d', child: Text('90 derniers jours (Trimestre)')),
+                            DropdownMenuItem(value: 'ytd', child: Text('Année en cours (YTD)')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) {
+                              setState(() => _selectedPreset = v);
+                              _fetchAnalytics();
+                            }
+                          },
+                        ),
+                        _dropdownControl(
+                          label: "Canal",
+                          value: _selectedChannel,
+                          items: const [
+                            DropdownMenuItem(value: 'ALL', child: Text('Tous les canaux')),
+                            DropdownMenuItem(value: 'CIB', child: Text('Réseau CIB')),
+                            DropdownMenuItem(value: 'EDAHABIA', child: Text('Réseau EDAHABIA')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) {
+                              setState(() => _selectedChannel = v);
+                              _fetchAnalytics();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-            // Tab Bar
-            Container(
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.border, width: 1.5)),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                labelColor: AppColors.primary,
-                unselectedLabelColor: AppColors.muted,
-                indicatorColor: AppColors.primary,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                tabs: const [
-                  Tab(icon: Icon(Icons.dashboard_outlined), text: "1. Vue d'ensemble"),
-                  Tab(icon: Icon(Icons.schedule_outlined), text: "2. Analyse Temporelle"),
-                  Tab(icon: Icon(Icons.storefront_outlined), text: "3. Analyse Commerçants"),
-                  Tab(icon: Icon(Icons.payments_outlined), text: "4. Analyse Transactions"),
+                  TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    labelColor: AppColors.primary,
+                    unselectedLabelColor: AppColors.slate,
+                    indicatorColor: AppColors.primary,
+                    indicatorWeight: 3,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.insights), text: "Activité & Évolution"),
+                      Tab(icon: Icon(Icons.storefront), text: "Comportement Commerçants"),
+                      Tab(icon: Icon(Icons.bar_chart), text: "Distributions des Transactions"),
+                      Tab(icon: Icon(Icons.security), text: "Analyse des Risques & Anomalies"),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Tab Body (Switchable content)
-            AnimatedBuilder(
-              animation: _tabController,
-              builder: (context, _) {
-                switch (_tabController.index) {
-                  case 0:
-                    return _buildOverviewSection(overview);
-                  case 1:
-                    return _buildTemporalSection(temporal);
-                  case 2:
-                    return _buildMerchantsSection(merchantsAnalysis);
-                  case 3:
-                    return _buildTransactionsSection(txAnalysis);
-                  default:
-                    return _buildOverviewSection(overview);
-                }
-              },
-            ),
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildPlatformActivityTab(overview, temporal),
+            _buildMerchantBehaviorTab(merchantsAnalysis),
+            _buildTransactionStatisticsTab(transactionsAnalysis),
+            _buildFraudAnomalyTab(fraudAnalytics),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
+  // PILLAR 1: Platform Activity (Volume & Count Line Chart + Heatmap)
+  Widget _buildPlatformActivityTab(Map overview, Map temporal) {
+    final trends = (temporal['trends'] as List?) ?? [];
+    final heatmap = temporal['heatmap'] ?? {};
+    final matrix = (heatmap['matrix'] as List?) ?? [];
+    final maxVol = trends.fold(100.0, (m, t) => max(m, (t['net_revenue'] ?? t['volume'] ?? 0.0).toDouble()));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Period Preset
-          PeriodSelectorWidget(
-            currentPreset: _selectedPreset,
-            onPresetChanged: (p) {
-              setState(() => _selectedPreset = p);
-              _fetchAnalytics();
-            },
+          _chartCard(
+            title: "Tendance Globale des Flux Monétiques Interbancaires",
+            subtitle: "Évolution temporelle du volume net (DZD) traité sur les serveurs SATIM",
+            child: SizedBox(
+              height: 280,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.border, strokeWidth: 0.8),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 60,
+                        getTitlesWidget: (v, _) => Text("${(v / 1000).toInt()}k", style: const TextStyle(fontSize: 10, color: AppColors.slate)),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        interval: max(1.0, (trends.length / 6).floorToDouble()),
+                        getTitlesWidget: (idx, _) {
+                          int i = idx.toInt();
+                          if (i >= 0 && i < trends.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                (trends[i]['period_label'] ?? trends[i]['date'] ?? '').toString().split(' ').first,
+                                style: const TextStyle(fontSize: 10, color: AppColors.slate),
+                              ),
+                            );
+                          }
+                          return const SizedBox();
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  minY: 0,
+                  maxY: maxVol * 1.15,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: [
+                        for (int i = 0; i < trends.length; i++)
+                          FlSpot(i.toDouble(), (trends[i]['net_revenue'] ?? trends[i]['volume'] ?? 0.0).toDouble()),
+                      ],
+                      isCurved: true,
+                      color: AppColors.primary,
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 20),
 
-          // Granularity Selector
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'day', label: Text('Jour')),
-              ButtonSegment(value: 'week', label: Text('Semaine')),
-              ButtonSegment(value: 'month', label: Text('Mois')),
-            ],
-            selected: {_selectedGranularity},
-            onSelectionChanged: (set) {
-              setState(() => _selectedGranularity = set.first);
-              _fetchAnalytics();
-            },
-          ),
-          const SizedBox(width: 8),
-
-          // Channel filter
-          DropdownButton<String>(
-            value: _selectedChannel,
-            underline: const SizedBox(),
-            items: const [
-              DropdownMenuItem(value: 'ALL', child: Text('Tous canaux')),
-              DropdownMenuItem(value: 'E-commerce (CIB / Edahabia)', child: Text('E-commerce')),
-              DropdownMenuItem(value: 'TPE / POS Terminal', child: Text('TPE / POS')),
-              DropdownMenuItem(value: 'Mobile App', child: Text('Mobile App')),
-              DropdownMenuItem(value: 'Contactless / NFC', child: Text('Sans Contact')),
-              DropdownMenuItem(value: 'Bank Transfer / Virement', child: Text('Virement')),
-            ],
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _selectedChannel = v);
-                _fetchAnalytics();
-              }
-            },
+          // Heatmap
+          _chartCard(
+            title: "Matrice d'Intensité Temporelle Nationale (7×24)",
+            subtitle: "Charge transactionnelle par heure et jour de la semaine sur le switch monétique",
+            child: _buildHeatmapGrid(matrix),
           ),
         ],
       ),
     );
   }
 
-  // ==========================================
-  // SECTION 1: VUE D'ENSEMBLE
-  // ==========================================
-  Widget _buildOverviewSection(Map overview) {
-    final comp = overview['comparison'] ?? {};
-    final netRevDelta = comp['net_revenue']?['delta_pct'] as num?;
-    final countDelta = comp['total_transactions']?['delta_pct'] as num?;
+  // PILLAR 2: Merchant Behavior (Horizontal Bar chart of Top merchants + Category comparison)
+  Widget _buildMerchantBehaviorTab(Map merchantsAnalysis) {
+    final topMerchants = (merchantsAnalysis['top_by_volume'] as List?) ?? [];
+    final categories = (merchantsAnalysis['category_performance'] as List?) ?? [];
 
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top merchants horizontal bar chart
+              Expanded(
+                flex: 3,
+                child: _chartCard(
+                  title: "Classement des Commerçants par Chiffre d'Affaires Net (DZD)",
+                  subtitle: "Top 7 des volumes d'encaissement les plus significatifs du réseau",
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < min(7, topMerchants.length); i++) ...[
+                        _buildHorizontalBar(
+                          label: topMerchants[i]['name'] ?? '',
+                          category: topMerchants[i]['category'] ?? '',
+                          amount: (topMerchants[i]['volume'] ?? 0.0).toDouble(),
+                          maxAmount: (topMerchants.first['volume'] ?? 100.0).toDouble(),
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+
+              // Category breakdown
+              Expanded(
+                flex: 2,
+                child: _chartCard(
+                  title: "Volumes par Secteur d'Activité",
+                  subtitle: "Part relative des catégories commerciales",
+                  child: Column(
+                    children: [
+                      for (final cat in categories.take(5)) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(cat['category'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            Text("${cat['share_pct']}%", style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: (cat['share_pct'] ?? 0.0) / 100.0,
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          color: AppColors.primary,
+                          minHeight: 6,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // PILLAR 3: Transaction Statistics (Histogram, Status pie/bar, Outlier Box Plot)
+  Widget _buildTransactionStatisticsTab(Map transactionsAnalysis) {
+    final stats = transactionsAnalysis['statistical_distribution'] ?? {};
+    final histogram = (stats['histogram'] as List?) ?? [];
+    final boxplot = stats['boxplot'] ?? {};
+    final brackets = (transactionsAnalysis['amount_brackets'] as List?) ?? [];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Histogram
+              Expanded(
+                flex: 3,
+                child: _chartCard(
+                  title: "Histogramme de Fréquence des Montants (DA)",
+                  subtitle: "Densité probabiliste des montants réglés par carte CIB et EDAHABIA",
+                  child: SizedBox(
+                    height: 250,
+                    child: BarChart(
+                      BarChartData(
+                        maxY: histogram.fold(1.0, (m, h) => max(m, (h['count'] ?? 0).toDouble())) * 1.2,
+                        gridData: const FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
+                        titlesData: FlTitlesData(
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 28,
+                              getTitlesWidget: (v, _) {
+                                int i = v.toInt();
+                                if (i >= 0 && i < histogram.length) {
+                                  return Text("${histogram[i]['range_min'].toInt()} DA", style: const TextStyle(fontSize: 9, color: AppColors.slate));
+                                }
+                                return const SizedBox();
+                              },
+                            ),
+                          ),
+                        ),
+                        barGroups: [
+                          for (int i = 0; i < histogram.length; i++)
+                            BarChartGroupData(
+                              x: i,
+                              barRods: [
+                                BarChartRodData(
+                                  toY: (histogram[i]['count'] ?? 0).toDouble(),
+                                  color: AppColors.primary,
+                                  width: 24,
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+
+              // Status Distribution
+              Expanded(
+                flex: 2,
+                child: _chartCard(
+                  title: "Tranches de Montants Usuelles",
+                  subtitle: "Proportion des paniers d'achat",
+                  child: Column(
+                    children: [
+                      for (final b in brackets) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(b['label'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.ink)),
+                            Text("${b['pct']}% (${b['count']} tx)", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: (b['pct'] ?? 0.0) / 100.0,
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          color: const Color(0xFF0D6EFD),
+                          minHeight: 5,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Boxplot Outlier Card
+          _chartCard(
+            title: "Boîte à Moustaches (Box Plot) & Détection des Valeurs Atypiques",
+            subtitle: "Repérage des transactions excédant 1.5× l'intervalle interquartile (IQR)",
+            child: Column(
+              children: [
+                _buildBoxPlotDiagram(boxplot),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _metricItem("Min", "${boxplot['min'] ?? 0} DA"),
+                    _metricItem("Q1 (25%)", "${boxplot['q1'] ?? 0} DA"),
+                    _metricItem("Médiane", "${boxplot['median'] ?? 0} DA", isBold: true),
+                    _metricItem("Q3 (75%)", "${boxplot['q3'] ?? 0} DA"),
+                    _metricItem("Max", "${boxplot['max'] ?? 0} DA"),
+                    _metricItem("Outliers", "${boxplot['outliers_count'] ?? 0}", isAlert: (boxplot['outliers_count'] ?? 0) > 0),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // PILLAR 4: Fraud & Anomaly Analytics (Risk Score Histogram + Risk vs Amount Scatter)
+  Widget _buildFraudAnomalyTab(Map fraudAnalytics) {
+    final scoreDistribution = (fraudAnalytics['score_distribution'] as List?) ?? [];
+    final scatterRisk = (fraudAnalytics['scatter_risk_vs_amount'] as List?) ?? [];
+    final velocityStats = (fraudAnalytics['velocity_stats'] as List?) ?? [];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Risk score distribution
+              Expanded(
+                flex: 3,
+                child: _chartCard(
+                  title: "Distribution des Scores de Risque Fraude (/100)",
+                  subtitle: "Ventilation des signalements selon la sévérité déterminée par le moteur heuristique",
+                  child: Column(
+                    children: [
+                      for (final b in scoreDistribution) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(color: Color(int.parse(b['color'].replaceAll('#', '0xFF'))), shape: BoxShape.circle),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(b['range'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                            Text("${b['count']} dossiers (${b['pct']}%)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: (b['pct'] ?? 0.0) / 100.0,
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          color: Color(int.parse(b['color'].replaceAll('#', '0xFF'))),
+                          minHeight: 6,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+
+              // Velocity Breakdown
+              Expanded(
+                flex: 2,
+                child: _chartCard(
+                  title: "Distribution de la Vélocité Transactionnelle",
+                  subtitle: "Analyse des rafales de transactions",
+                  child: Column(
+                    children: [
+                      for (final v in velocityStats) ...[
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            v['is_anomaly'] ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                            color: v['is_anomaly'] ? AppColors.danger : AppColors.success,
+                          ),
+                          title: Text(v['label'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          trailing: Text("${v['count']} obs.", style: const TextStyle(fontSize: 12, color: AppColors.slate)),
+                        ),
+                        const Divider(height: 1),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Scatter Plot: Risk Score vs Transaction Amount
+          _chartCard(
+            title: "Nuage de Corrélation : Score de Risque vs Montant de Transaction",
+            subtitle: "Isolement visuel des anomalies à fort impact financier",
+            child: SizedBox(
+              height: 280,
+              child: ScatterChart(
+                ScatterChartData(
+                  minX: 0,
+                  maxX: 100,
+                  minY: 0,
+                  maxY: 60000,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.border, strokeWidth: 0.8),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        interval: 20,
+                        getTitlesWidget: (v, _) => Text("Score ${v.toInt()}", style: const TextStyle(fontSize: 10, color: AppColors.slate)),
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 50,
+                        interval: 15000,
+                        getTitlesWidget: (v, _) => Text("${(v / 1000).toInt()}k DA", style: const TextStyle(fontSize: 10, color: AppColors.slate)),
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  scatterSpots: [
+                    for (int i = 0; i < scatterRisk.length; i++)
+                      ScatterSpot(
+                        (scatterRisk[i]['risk_score'] ?? 0).toDouble(),
+                        (scatterRisk[i]['amount'] ?? 1000.0).toDouble().clamp(0.0, 60000.0),
+                        dotPainter: FlDotCirclePainter(
+                          radius: (scatterRisk[i]['risk_score'] ?? 0) > 70 ? 7 : 4,
+                          color: (scatterRisk[i]['risk_score'] ?? 0) > 70 ? const Color(0xFFDC3545) : const Color(0xFFFFC107),
+                          strokeWidth: 1,
+                          strokeColor: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeatmapGrid(List matrix) {
+    if (matrix.isEmpty) {
+      return const Center(child: Text("Matrice indisponible."));
+    }
+    final int maxCount = matrix.fold(1, (m, c) => max(m, (c['count'] ?? 0) as int));
+    final dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            const SizedBox(width: 45),
+            for (int h = 0; h < 24; h += 2)
+              Expanded(
+                child: Text("${h}h", textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: AppColors.slate)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (int d = 0; d < 7; d++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2.0),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 45,
+                  child: Text(dayNames[d], style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                ),
+                for (int h = 0; h < 24; h++) ...[
+                  Expanded(
+                    child: _heatCell(matrix, d, h, maxCount),
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _heatCell(List matrix, int d, int h, int maxCount) {
+    final cell = matrix.firstWhere(
+      (it) => it['day_index'] == d && it['hour'] == h,
+      orElse: () => {'count': 0},
+    );
+    final count = cell['count'] ?? 0;
+    final ratio = maxCount > 0 ? (count / maxCount).clamp(0.0, 1.0) : 0.0;
+    final color = count == 0
+        ? const Color(0xFFF1F5F9)
+        : AppColors.primary.withValues(alpha: 0.15 + (ratio * 0.85));
+
+    return Tooltip(
+      message: "$count transactions nationales à $h:00",
+      child: Container(
+        height: 22,
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+      ),
+    );
+  }
+
+  Widget _buildHorizontalBar({
+    required String label,
+    required String category,
+    required double amount,
+    required double maxAmount,
+    required Color color,
+  }) {
+    final ratio = maxAmount > 0 ? (amount / maxAmount).clamp(0.0, 1.0) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 4 Key Metric Cards
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 900;
-            final items = [
-              KpiCard(
-                title: 'Volume Traité (Net)',
-                value: formatDzd(overview['net_revenue'] ?? 0),
-                deltaPct: netRevDelta?.toDouble(),
-                subtitle: 'Encaissements compensés SATIM',
-                icon: Icons.account_balance_wallet,
-                iconColor: AppColors.primary,
-              ),
-              KpiCard(
-                title: 'Nombre de Transactions',
-                value: '${overview['total_transactions'] ?? 0}',
-                deltaPct: countDelta?.toDouble(),
-                subtitle: 'Opérations réseau globales',
-                icon: Icons.receipt_long,
-                iconColor: AppColors.cibBlue,
-              ),
-              KpiCard(
-                title: 'Taux d\'Acceptation',
-                value: formatPct(overview['success_rate'] ?? 0),
-                subtitle: 'Taux de rejet : ${formatPct(overview['rejection_rate'] ?? 0)}',
-                icon: Icons.check_circle_outline,
-                iconColor: AppColors.success,
-              ),
-              KpiCard(
-                title: 'Points de Vente Actifs',
-                value: '${overview['active_merchants'] ?? 0} / ${overview['total_merchants'] ?? 0}',
-                subtitle: 'Commerçants connectés au réseau',
-                icon: Icons.storefront,
-                iconColor: AppColors.edahabiaGold,
-              ),
-            ];
-
-            return isWide
-                ? Row(
-                    children: items.map((w) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: w))).toList(),
-                  )
-                : Column(
-                    children: items.map((w) => Padding(padding: const EdgeInsets.only(bottom: 12), child: w)).toList(),
-                  );
-          },
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+            Text(Formatters.formatDzd(amount), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+          ],
         ),
-        const SizedBox(height: 24),
-
-        // Summary Statistics Grid
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Indicateurs Consolidés de Performance Réseau', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 4),
-              const Text('Métriques agrégées sur la période d\'observation', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 30,
-                runSpacing: 16,
-                children: [
-                  _statItem('Ticket Moyen Global', formatDzd(overview['avg_ticket'] ?? 0)),
-                  _statItem('Transactions Acceptées', '${overview['accepted_count'] ?? 0} tx'),
-                  _statItem('Transactions Refusées', '${overview['rejected_count'] ?? 0} tx', isAlert: true),
-                  _statItem('Transactions Remboursées', '${overview['refunded_count'] ?? 0} tx'),
-                  _statItem('Transactions Annulées', '${overview['cancelled_count'] ?? 0} tx'),
-                ],
-              ),
-            ],
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 10,
+            backgroundColor: const Color(0xFFF1F5F9),
+            color: color,
           ),
         ),
       ],
     );
   }
 
-  Widget _statItem(String label, String value, {bool isAlert = false}) {
+  Widget _buildBoxPlotDiagram(Map boxplot) {
+    final minVal = (boxplot['min'] ?? 0).toDouble();
+    final q1Val = (boxplot['q1'] ?? 0).toDouble();
+    final q3Val = (boxplot['q3'] ?? 0).toDouble();
+    final maxVal = (boxplot['max'] ?? 100).toDouble();
+
+    final range = max(1.0, maxVal - minVal);
+    final leftWhiskerWidth = max(0.0, ((q1Val - minVal) / range));
+    final boxWidth = max(0.05, ((q3Val - q1Val) / range));
+    final rightWhiskerWidth = max(0.0, ((maxVal - q3Val) / range));
+
+    return Container(
+      height: 55,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(
+            flex: max(1, (leftWhiskerWidth * 100).toInt()),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Divider(color: AppColors.slate, thickness: 2),
+                Align(alignment: Alignment.centerLeft, child: Container(width: 3, height: 22, color: AppColors.slate)),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: max(2, (boxWidth * 100).toInt()),
+            child: Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                border: Border.all(color: AppColors.primary, width: 2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(
+                child: Container(width: 3, height: 36, color: AppColors.primary),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: max(1, (rightWhiskerWidth * 100).toInt()),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Divider(color: AppColors.slate, thickness: 2),
+                Align(alignment: Alignment.centerRight, child: Container(width: 3, height: 22, color: AppColors.slate)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chartCard({required String title, required String subtitle, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          const SizedBox(height: 20),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _metricItem(String label, String value, {bool isBold = false, bool isAlert = false}) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
             color: isAlert ? AppColors.danger : AppColors.ink,
           ),
         ),
@@ -391,703 +889,24 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
     );
   }
 
-  // ==========================================
-  // SECTION 2: ANALYSE TEMPORELLE
-  // ==========================================
-  Widget _buildTemporalSection(Map temporal) {
-    final trends = (temporal['trends'] as List?) ?? [];
-    final heatmap = temporal['heatmap'] ?? {};
-    final matrix = (heatmap['matrix'] as List?) ?? [];
-    final peakSlot = heatmap['peak_slot'] ?? {};
-    final lowSlot = heatmap['low_slot'] ?? {};
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _dropdownControl({
+    required String label,
+    required String value,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Trends Card
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Évolution Temporelle du Volume d\'Encaissement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 4),
-              const Text('Trajectoire des montants acceptés sur le réseau', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 240,
-                child: trends.isEmpty
-                    ? const Center(child: Text("Données insuffisantes"))
-                    : LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
-                            getDrawingHorizontalLine: (val) => const FlLine(color: AppColors.border, strokeWidth: 1),
-                          ),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 55,
-                                getTitlesWidget: (val, meta) {
-                                  if (val == meta.max || val == meta.min) return const SizedBox.shrink();
-                                  final kVal = (val / 1000).toStringAsFixed(0);
-                                  return Text('${kVal}k', style: const TextStyle(fontSize: 10, color: AppColors.muted));
-                                },
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 32,
-                                interval: (trends.length / 6).clamp(1.0, 10.0),
-                                getTitlesWidget: (val, meta) {
-                                  final idx = val.toInt();
-                                  if (idx < 0 || idx >= trends.length) return const SizedBox.shrink();
-                                  final label = trends[idx]['label']?.toString() ?? '';
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(label, style: const TextStyle(fontSize: 10, color: AppColors.muted)),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: List.generate(trends.length, (i) {
-                                final rev = (trends[i]['revenue'] as num?)?.toDouble() ?? 0.0;
-                                return FlSpot(i.toDouble(), rev);
-                              }),
-                              isCurved: true,
-                              color: AppColors.primary,
-                              barWidth: 3,
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: AppColors.primary.withValues(alpha: 0.1),
-                              ),
-                              dotData: FlDotData(show: trends.length <= 15),
-                            ),
-                          ],
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Peak / Low callouts
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.trending_up, color: AppColors.success, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Pic d\'Affluence Réseau (Heure de Pointe)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.success)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${peakSlot['day_name'] ?? peakSlot['day'] ?? 'Dimanche'} à ${peakSlot['hour'] ?? 12}h (${peakSlot['count'] ?? 0} transactions)',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.nightlight_round, color: AppColors.warning, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Créneau d\'Activité Creuse', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${lowSlot['day_name'] ?? lowSlot['day'] ?? 'Dimanche'} à ${lowSlot['hour'] ?? 4}h (${lowSlot['count'] ?? 0} transactions)',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Heatmap Grid 7j x 24h
-        _buildHeatmapGrid(matrix),
-      ],
-    );
-  }
-
-  Widget _buildHeatmapGrid(List matrix) {
-    final days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    int maxCount = 1;
-    for (var cell in matrix) {
-      if (cell is Map) {
-        final c = (cell['count'] as num?)?.toInt() ?? 0;
-        if (c > maxCount) maxCount = c;
-      } else if (cell is List) {
-        for (var sub in cell) {
-          final c = (sub as num?)?.toInt() ?? 0;
-          if (c > maxCount) maxCount = c;
-        }
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Matrice Temporelle 7j / 24h', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                  Text('Densité des transactions réseau par jour de semaine et heure', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-                ],
-              ),
-              Row(
-                children: [
-                  const Text('Moins', style: TextStyle(fontSize: 11, color: AppColors.muted)),
-                  const SizedBox(width: 6),
-                  Container(width: 12, height: 12, color: const Color(0xFFF1F5F9)),
-                  const SizedBox(width: 3),
-                  Container(width: 12, height: 12, color: AppColors.primary.withValues(alpha: 0.3)),
-                  const SizedBox(width: 3),
-                  Container(width: 12, height: 12, color: AppColors.primary.withValues(alpha: 0.6)),
-                  const SizedBox(width: 3),
-                  Container(width: 12, height: 12, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  const Text('Plus', style: TextStyle(fontSize: 11, color: AppColors.muted)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: 780,
-              child: Column(
-                children: [
-                  // Hour headers (0..23)
-                  Row(
-                    children: [
-                      const SizedBox(width: 90),
-                      ...List.generate(24, (h) {
-                        return Expanded(
-                          child: Center(
-                            child: Text(
-                              h % 3 == 0 ? '${h}h' : '',
-                              style: const TextStyle(fontSize: 10, color: AppColors.muted),
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-
-                  // Day rows
-                  ...List.generate(7, (d) {
-                    final dayName = days[d];
-                    final dayCells = matrix.where((m) => m is Map && m['day_index'] == d).toList();
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2.0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 90,
-                            child: Text(
-                              dayName,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.ink),
-                            ),
-                          ),
-                          ...List.generate(24, (h) {
-                            final cell = dayCells.firstWhere(
-                              (c) => c is Map && c['hour'] == h,
-                              orElse: () => {'count': 0},
-                            );
-                            final count = (cell['count'] as num?)?.toInt() ?? 0;
-                            final intensity = maxCount > 0 ? (count / maxCount) : 0.0;
-                            Color bg;
-                            if (count == 0) {
-                              bg = const Color(0xFFF1F5F9);
-                            } else if (intensity < 0.3) {
-                              bg = AppColors.primary.withValues(alpha: 0.25);
-                            } else if (intensity < 0.7) {
-                              bg = AppColors.primary.withValues(alpha: 0.55);
-                            } else {
-                              bg = AppColors.primary;
-                            }
-
-                            return Expanded(
-                              child: Tooltip(
-                                message: '$dayName à ${h}h : $count transactions',
-                                child: Container(
-                                  height: 22,
-                                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: bg,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // SECTION 3: ANALYSE DES COMMERÇANTS
-  // ==========================================
-  Widget _buildMerchantsSection(Map merchantsAnalysis) {
-    final topVolume = (merchantsAnalysis['top_by_volume'] as List?) ?? [];
-    final topRejections = (merchantsAnalysis['top_by_rejections'] as List?) ?? [];
-    final categoryPerf = (merchantsAnalysis['category_performance'] as List?) ?? [];
-    final anomalies = (merchantsAnalysis['anomalous_merchants'] as List?) ?? [];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Anomalies Banner if any
-        if (anomalies.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 28),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Comportements Atypiques / Rejets Élevés Détectés', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.danger)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${anomalies.length} commerçant(s) présentent un taux de rejet supérieur à 25 % sur la période.',
-                        style: const TextStyle(fontSize: 12, color: AppColors.ink),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-
-        // 2 Columns: Top Volume vs Top Rejections
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 850;
-            return isWide
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildTopVolumeTable(topVolume)),
-                      const SizedBox(width: 20),
-                      Expanded(child: _buildTopRejectionsTable(topRejections)),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      _buildTopVolumeTable(topVolume),
-                      const SizedBox(height: 20),
-                      _buildTopRejectionsTable(topRejections),
-                    ],
-                  );
-          },
-        ),
-        const SizedBox(height: 24),
-
-        // Category Performance Table
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Performance par Secteur d\'Activité', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-              const SizedBox(height: 4),
-              const Text('Volume, part de marché et taux de rejet par catégorie', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-              const SizedBox(height: 16),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Secteur')),
-                    DataColumn(label: Text('Transactions')),
-                    DataColumn(label: Text('Volume Total')),
-                    DataColumn(label: Text('Part (%)')),
-                    DataColumn(label: Text('Ticket Moyen')),
-                    DataColumn(label: Text('Taux Rejet')),
-                  ],
-                  rows: categoryPerf.map((cat) {
-                    final rejRate = (cat['rejection_rate'] as num?)?.toDouble() ?? 0.0;
-                    return DataRow(cells: [
-                      DataCell(Text(cat['category'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Text('${cat['total_count'] ?? 0}')),
-                      DataCell(Text(formatDzd(cat['volume'] ?? 0))),
-                      DataCell(Text(formatPct((cat['share_pct'] as num?)?.toDouble() ?? 0))),
-                      DataCell(Text(formatDzd(cat['avg_ticket'] ?? 0))),
-                      DataCell(
-                        Text(
-                          formatPct(rejRate),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: rejRate > 20 ? AppColors.danger : AppColors.ink,
-                          ),
-                        ),
-                      ),
-                    ]);
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
+        Text("$label : ", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate)),
+        DropdownButton<String>(
+          value: value,
+          isDense: true,
+          underline: const SizedBox(),
+          items: items,
+          onChanged: onChanged,
         ),
       ],
-    );
-  }
-
-  Widget _buildTopVolumeTable(List list) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Top Commerçants par Chiffre d\'Affaires', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink)),
-          const SizedBox(height: 12),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: list.length.clamp(0, 6),
-            separatorBuilder: (_, __) => const Divider(height: 12),
-            itemBuilder: (ctx, i) {
-              final m = list[i];
-              return Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    child: Text('${i + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(m['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('${m['category']} • ${m['wilaya']}', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
-                      ],
-                    ),
-                  ),
-                  Text(formatDzd(m['volume'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopRejectionsTable(List list) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Commerçants avec Rejets Significatifs', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink)),
-          const SizedBox(height: 12),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: list.length.clamp(0, 6),
-            separatorBuilder: (_, __) => const Divider(height: 12),
-            itemBuilder: (ctx, i) {
-              final m = list[i];
-              final rate = (m['rejection_rate'] as num?)?.toDouble() ?? 0.0;
-              return Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: AppColors.danger.withValues(alpha: 0.1),
-                    child: const Icon(Icons.close, size: 12, color: AppColors.danger),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(m['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('${m['rejected_count']} rejets / ${m['total_count']} tx', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(formatPct(rate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.danger)),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // SECTION 4: ANALYSE DES TRANSACTIONS
-  // ==========================================
-  Widget _buildTransactionsSection(Map txAnalysis) {
-    final statusDist = (txAnalysis['status_distribution'] as List?) ?? [];
-    final channelDist = (txAnalysis['channel_distribution'] as List?) ?? [];
-    final amountBrackets = (txAnalysis['amount_brackets'] as List?) ?? [];
-    final rejectionReasons = (txAnalysis['rejection_reasons'] as List?) ?? [];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 2 Columns: Status Distribution & Channel Distribution
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 850;
-            return isWide
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildDistributionCard('Répartition par Statut', statusDist, isStatus: true)),
-                      const SizedBox(width: 20),
-                      Expanded(child: _buildDistributionCard('Répartition par Canal de Paiement', channelDist, isStatus: false)),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      _buildDistributionCard('Répartition par Statut', statusDist, isStatus: true),
-                      const SizedBox(height: 20),
-                      _buildDistributionCard('Répartition par Canal de Paiement', channelDist, isStatus: false),
-                    ],
-                  );
-          },
-        ),
-        const SizedBox(height: 24),
-
-        // Amount Brackets
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Ventilation par Tranche de Montant (DZD)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-              const SizedBox(height: 4),
-              const Text('Répartition de la valeur des paniers sur l\'ensemble du réseau', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-              const SizedBox(height: 20),
-              Column(
-                children: amountBrackets.map((b) {
-                  final pct = (b['pct'] as num?)?.toDouble() ?? 0.0;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(b['label'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                            Text('${b['count']} tx (${formatPct(pct)})', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                          value: (pct / 100).clamp(0.0, 1.0),
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          color: AppColors.primary,
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Rejection Reasons Breakdown
-        if (rejectionReasons.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Motifs Principaux de Rejet & Échecs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                const SizedBox(height: 4),
-                const Text('Causes d\'échec déclarées par les passerelles et banques émettrices', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-                const SizedBox(height: 16),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: rejectionReasons.length,
-                  separatorBuilder: (_, __) => const Divider(height: 12),
-                  itemBuilder: (ctx, i) {
-                    final r = rejectionReasons[i];
-                    return Row(
-                      children: [
-                        const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(r['reason'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-                        ),
-                        Text('${r['count']} rejets (${formatPct((r['pct'] as num?)?.toDouble() ?? 0)})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.danger)),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildDistributionCard(String title, List items, {required bool isStatus}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink)),
-          const SizedBox(height: 16),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(height: 12),
-            itemBuilder: (ctx, i) {
-              final it = items[i];
-              final name = isStatus ? (it['status'] ?? '-') : (it['channel'] ?? '-');
-              Color color = AppColors.ink;
-              if (name == 'Accepted') color = AppColors.success;
-              if (name == 'Declined') color = AppColors.danger;
-              if (name == 'Refunded') color = AppColors.cibBlue;
-              if (name == 'Cancelled') color = AppColors.warning;
-
-              return Row(
-                children: [
-                  Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: color)),
-                  ),
-                  Text('${it['count'] ?? 0} tx', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                  const SizedBox(width: 12),
-                  Text(formatDzd(it['total_amount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
     );
   }
 }
