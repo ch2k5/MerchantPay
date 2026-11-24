@@ -96,6 +96,7 @@ class AlertType(models.TextChoices):
     PEAK_ACTIVITY = "PEAK_ACTIVITY", "Créneau de forte affluence"
     LOW_ACTIVITY_SLOT = "LOW_ACTIVITY_SLOT", "Créneau creux récurrent"
     CHANNEL_SHIFT = "CHANNEL_SHIFT", "Glissement des canaux de paiement"
+    ADMIN_OBSERVATION = "ADMIN_OBSERVATION", "Observation SATIM"
 
 
 class RiskLevel(models.TextChoices):
@@ -122,3 +123,5 @@ class AuditAction(models.TextChoices):
     EXPORT_GENERATED = "EXPORT_GENERATED", "Génération d'export"
     RISK_SCAN_RUN = "RISK_SCAN_RUN", "Exécution scan risque"
     PASSWORD_CHANGED = "PASSWORD_CHANGED", "Changement de mot de passe"
+    TRANSACTION_DECLINED = "TRANSACTION_DECLINED", "Transaction déclinée par commerçant"
+    TRANSACTION_REFUNDED = "TRANSACTION_REFUNDED", "Transaction remboursée par commerçant"

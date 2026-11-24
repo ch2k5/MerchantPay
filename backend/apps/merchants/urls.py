@@ -16,9 +16,11 @@ from apps.merchants.views import (
     MerchantReportGenerateView,
     MerchantSimulatorBaselineView,
     MerchantSimulatorRunView,
+    MerchantTransactionDeclineView,
     MerchantTransactionDetailView,
     MerchantTransactionExportView,
     MerchantTransactionListView,
+    MerchantTransactionRefundView,
 )
 
 urlpatterns = [
@@ -26,6 +28,8 @@ urlpatterns = [
     path("dashboard/", MerchantDashboardView.as_view(), name="merchant-dashboard"),
     path("transactions/", MerchantTransactionListView.as_view(), name="merchant-transactions-list"),
     path("transactions/<uuid:pk>/", MerchantTransactionDetailView.as_view(), name="merchant-transactions-detail"),
+    path("transactions/<uuid:pk>/decline/", MerchantTransactionDeclineView.as_view(), name="merchant-transactions-decline"),
+    path("transactions/<uuid:pk>/refund/", MerchantTransactionRefundView.as_view(), name="merchant-transactions-refund"),
     path("transactions/export/", MerchantTransactionExportView.as_view(), name="merchant-transactions-export"),
     path("collections/", MerchantCollectionsView.as_view(), name="merchant-collections"),
     path("analytics/", MerchantAnalyticsView.as_view(), name="merchant-analytics"),

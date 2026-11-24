@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/file_saver.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/common_widgets.dart';
 
@@ -78,17 +80,34 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
     );
     try {
       final client = ref.read(apiClientProvider);
-      final res = await client.get('/merchant/transactions/export/', queryParameters: {
-        'format': format,
-        if (_searchCtrl.text.isNotEmpty) 'search': _searchCtrl.text.trim(),
-        if (_selectedStatus != null) 'status': _selectedStatus,
-        if (_selectedChannel != null) 'channel': _selectedChannel,
-      });
-      if (res.statusCode == 200 && mounted) {
+      final res = await client.dio.get<List<int>>(
+        '/merchant/transactions/export/',
+        queryParameters: {
+          'format': format,
+          if (_searchCtrl.text.isNotEmpty) 'search': _searchCtrl.text.trim(),
+          if (_selectedStatus != null) 'status': _selectedStatus,
+          if (_selectedChannel != null) 'channel': _selectedChannel,
+        },
+        options: Options(
+          responseType: ResponseType.bytes,
+        ),
+      );
+      if (res.statusCode == 200 && res.data != null && mounted) {
+        final bytes = res.data!;
+        final mimeType = format == 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+        final extension = format == 'pdf' ? 'pdf' : 'csv';
+        final filename = 'releve_transactions.$extension';
+
+        saveFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType: mimeType,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.success,
-            content: Text("Export $format généré avec succès !"),
+            content: Text("Export $format généré avec succès ! Téléchargement lancé ($filename)."),
           ),
         );
       }
@@ -105,6 +124,9 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
   }
 
   void _showDetailModal(Map<String, dynamic> tx) {
+    final txStatus = tx['transaction_status'] ?? '';
+    final isAccepted = txStatus == 'Accepted' || txStatus == 'ACCEPTED' || txStatus == 'COMPLETED';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -135,9 +157,149 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Fermer")),
+          if (isAccepted) ...[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.undo, size: 15),
+              label: const Text("Rembourser"),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.info),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showRefundDialog(tx);
+              },
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.block, size: 15),
+              label: const Text("Décliner"),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showDeclineConfirm(tx);
+              },
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  void _showDeclineConfirm(Map<String, dynamic> tx) {
+    final txId = tx['id'] ?? tx['transaction_id'] ?? '';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.block, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Décliner la transaction', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Voulez-vous vraiment décliner la transaction ${tx['reference'] ?? ''} d\'un montant de ${Formatters.formatDzd(tx['amount'])} ?\n\n'
+          'Cette action est irréversible et ne peut être effectuée que sur des transactions acceptées.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _declineTransaction(txId, tx['reference'] ?? '');
+            },
+            child: const Text('Confirmer la décision'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _declineTransaction(String txId, String txRef) async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.post('/merchant/transactions/$txId/decline/');
+      if (res.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: AppColors.success, content: Text('Transaction $txRef déclinée avec succès.')),
+        );
+        _fetchTransactions(page: _currentPage);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: AppColors.danger, content: Text('Impossible de décliner la transaction.')),
+        );
+      }
+    }
+  }
+
+  void _showRefundDialog(Map<String, dynamic> tx) {
+    final txId = tx['id'] ?? tx['transaction_id'] ?? '';
+    final amountCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.undo, color: AppColors.info),
+            SizedBox(width: 8),
+            Text('Rembourser la transaction', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Transaction : ${tx['reference'] ?? ''} — ${Formatters.formatDzd(tx['amount'])}'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Montant à rembourser (DZD)',
+                hintText: 'Ex: 5000',
+                prefixIcon: Icon(Icons.money),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
+          FilledButton(
+            onPressed: () async {
+              final amount = double.tryParse(amountCtrl.text.replaceAll(',', '.'));
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Veuillez saisir un montant valide.')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              await _refundTransaction(txId, amount, tx['reference'] ?? '');
+            },
+            child: const Text('Valider le remboursement'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refundTransaction(String txId, double amount, String txRef) async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.post('/merchant/transactions/$txId/refund/', data: {'refund_amount': amount});
+      if (res.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: AppColors.success, content: Text('Remboursement de ${Formatters.formatDzd(amount)} enregistré pour $ref.')),
+        );
+        _fetchTransactions(page: _currentPage);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: AppColors.danger, content: Text('Impossible d\'enregistrer le remboursement.')),
+        );
+      }
+    }
   }
 
   Widget _modalRow(String label, String value, {bool isAlert = false}) {
@@ -368,21 +530,28 @@ class _MerchantTransactionsScreenState extends ConsumerState<MerchantTransaction
     String label = status ?? '';
 
     switch (status) {
+      // Dataset values (capitalized)
+      case 'Accepted':
       case 'ACCEPTED':
+      case 'COMPLETED':
         bg = const Color(0xFFE8F5E9);
         fg = AppColors.success;
         label = 'Acceptée';
         break;
+      case 'Declined':
       case 'REJECTED':
+      case 'DECLINED':
         bg = const Color(0xFFFFEBEE);
         fg = AppColors.danger;
-        label = 'Rejetée';
+        label = 'Refusée';
         break;
+      case 'Cancelled':
       case 'CANCELLED':
         bg = const Color(0xFFFFF3E0);
         fg = AppColors.warning;
         label = 'Annulée';
         break;
+      case 'Refunded':
       case 'REFUNDED':
         bg = const Color(0xFFE1F5FE);
         fg = AppColors.info;

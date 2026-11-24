@@ -164,6 +164,124 @@ class MerchantTransactionDetailView(generics.RetrieveAPIView):
         return self.request.user.merchant.transactions.all().select_related("merchant")
 
 
+class MerchantTransactionDeclineView(APIView):
+    """
+    Merchant declines a transaction that is currently Accepted (cancels it on the merchant side).
+    Does NOT touch SATIM systems — registers the merchant's decision locally.
+    """
+    permission_classes = [IsMerchant]
+
+    def post(self, request, pk):
+        from apps.transactions.models import Transaction
+        merchant = request.user.merchant
+        try:
+            tx = merchant.transactions.get(pk=pk)
+        except Exception:
+            return Response({"code": "NOT_FOUND", "message": "Transaction introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        eligible_statuses = ["Accepted", "ACCEPTED", "COMPLETED"]
+        if tx.transaction_status not in eligible_statuses:
+            return Response(
+                {
+                    "code": "INVALID_STATUS",
+                    "message": f"Seules les transactions acceptées peuvent être déclinées par le commerçant. Statut actuel : {tx.transaction_status}."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = tx.transaction_status
+        tx.transaction_status = "Declined"
+        tx.rejection_reason = "Refus commerçant"
+        tx.save(update_fields=["transaction_status", "rejection_reason"])
+
+        record_audit(
+            request=request,
+            actor=request.user,
+            action=AuditAction.TRANSACTION_DECLINED,
+            target_type="Transaction",
+            target_id=str(tx.transaction_id),
+            before={"status": old_status},
+            after={"status": tx.transaction_status, "reason": "Refus commerçant"},
+        )
+
+        serializer = TransactionSerializer(tx)
+        return Response({"message": "Transaction déclinée avec succès.", "transaction": serializer.data})
+
+
+class MerchantTransactionRefundView(APIView):
+    """
+    Merchant initiates a refund for an accepted transaction.
+    Partial refunds are supported (refund_amount <= original amount - already_refunded).
+    """
+    permission_classes = [IsMerchant]
+
+    def post(self, request, pk):
+        from apps.transactions.models import Transaction
+        merchant = request.user.merchant
+        try:
+            tx = merchant.transactions.get(pk=pk)
+        except Exception:
+            return Response({"code": "NOT_FOUND", "message": "Transaction introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        eligible_statuses = ["Accepted", "ACCEPTED", "COMPLETED"]
+        if tx.transaction_status not in eligible_statuses:
+            return Response(
+                {
+                    "code": "INVALID_STATUS",
+                    "message": f"Seules les transactions acceptées peuvent être remboursées. Statut actuel : {tx.transaction_status}."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        refund_amount_raw = request.data.get("refund_amount")
+        try:
+            refund_amount = Decimal(str(refund_amount_raw))
+            if refund_amount <= Decimal("0.00"):
+                raise ValueError("non-positive")
+        except Exception:
+            return Response(
+                {"code": "INVALID_AMOUNT", "message": "Le montant du remboursement doit être un nombre positif."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        already_refunded = tx.refunded_amount or Decimal("0.00")
+        max_refundable = tx.amount - already_refunded
+        if refund_amount > max_refundable:
+            return Response(
+                {
+                    "code": "AMOUNT_EXCEEDS_MAX",
+                    "message": f"Le montant du remboursement ({refund_amount} DZD) dépasse le maximum remboursable ({max_refundable} DZD)."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = tx.transaction_status
+        new_refunded = already_refunded + refund_amount
+        tx.refunded_amount = new_refunded
+        # Full refund → mark as Refunded; partial → stays Accepted
+        if new_refunded >= tx.amount:
+            tx.transaction_status = "Refunded"
+        tx.save(update_fields=["refunded_amount", "transaction_status"])
+
+        record_audit(
+            request=request,
+            actor=request.user,
+            action=AuditAction.TRANSACTION_REFUNDED,
+            target_type="Transaction",
+            target_id=str(tx.transaction_id),
+            before={"status": old_status, "refunded_amount": str(already_refunded)},
+            after={"status": tx.transaction_status, "refunded_amount": str(new_refunded), "refund_applied": str(refund_amount)},
+        )
+
+        serializer = TransactionSerializer(tx)
+        return Response({
+            "message": "Remboursement enregistré avec succès.",
+            "refund_applied": str(refund_amount),
+            "total_refunded": str(new_refunded),
+            "transaction": serializer.data,
+        })
+
+
 class MerchantTransactionExportView(APIView):
     permission_classes = [IsMerchant]
 

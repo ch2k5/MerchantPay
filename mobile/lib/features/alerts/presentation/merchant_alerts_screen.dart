@@ -206,6 +206,8 @@ class _MerchantAlertsScreenState extends ConsumerState<MerchantAlertsScreen> {
                 _buildFilterChip('WARNING', 'Avertissements'),
                 const SizedBox(width: 8),
                 _buildFilterChip('INFO', 'Informatif'),
+                const SizedBox(width: 8),
+                _buildFilterChip('SUCCESS', 'Objectifs'),
               ],
             ),
             const SizedBox(height: 20),
@@ -251,23 +253,35 @@ class _MerchantAlertsScreenState extends ConsumerState<MerchantAlertsScreen> {
 
   Widget _buildAlertCard(Map<String, dynamic> alert) {
     final severity = alert['severity'] ?? 'INFO';
+    final alertType = alert['type'] ?? '';
+    final isAdminObs = alertType == 'ADMIN_OBSERVATION';
     final isNew = alert['status'] == 'NEW';
     final snapshot = alert['metric_snapshot'] as Map<String, dynamic>?;
 
     Color badgeColor;
     IconData badgeIcon;
-    switch (severity) {
-      case 'CRITICAL':
-        badgeColor = AppColors.danger;
-        badgeIcon = Icons.error_outline;
-        break;
-      case 'WARNING':
-        badgeColor = AppColors.warning;
-        badgeIcon = Icons.warning_amber_outlined;
-        break;
-      default:
-        badgeColor = AppColors.cibBlue;
-        badgeIcon = Icons.info_outline;
+
+    if (isAdminObs) {
+      badgeColor = const Color(0xFF1565C0); // Deep blue for SATIM messages
+      badgeIcon = Icons.shield_outlined;
+    } else {
+      switch (severity) {
+        case 'CRITICAL':
+          badgeColor = AppColors.danger;
+          badgeIcon = Icons.error_outline;
+          break;
+        case 'WARNING':
+          badgeColor = AppColors.warning;
+          badgeIcon = Icons.warning_amber_outlined;
+          break;
+        case 'SUCCESS':
+          badgeColor = AppColors.success;
+          badgeIcon = Icons.check_circle_outline;
+          break;
+        default:
+          badgeColor = AppColors.cibBlue;
+          badgeIcon = Icons.info_outline;
+      }
     }
 
     return Container(
@@ -308,6 +322,13 @@ class _MerchantAlertsScreenState extends ConsumerState<MerchantAlertsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(4)),
                 child: const Text('NOUVEAU', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            if (isAdminObs)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFF1565C0), borderRadius: BorderRadius.circular(4)),
+                child: const Text('SATIM', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
               ),
             Text(
               formatDateTime(alert['created_at']),

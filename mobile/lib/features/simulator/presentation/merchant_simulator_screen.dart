@@ -81,6 +81,142 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
     _runSimulation();
   }
 
+  void _showFormulaDialog(BuildContext context, Map baseKpis) {
+    final baseCount = (baseKpis['count'] as num?)?.toInt() ?? 0;
+    final baseAvg = (baseKpis['avg_ticket'] as num?)?.toDouble() ?? 0.0;
+    final baseRev = (baseKpis['revenue'] as num?)?.toDouble() ?? 0.0;
+
+    final simCountRaw = baseCount * (1 + _volumePct / 100);
+    final simCount = simCountRaw.round();
+    final simAvg = baseAvg + _ticketDelta;
+    final simRev = simCount * simAvg;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.calculate_outlined, color: AppColors.primary),
+            SizedBox(width: 10),
+            Text('Comprendre le calcul', style: TextStyle(fontSize: 17)),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _formulaSection(
+                  '1. Volume de transactions simulé',
+                  'Volume simulé = Volume de base × (1 + taux de croissance / 100)',
+                  [
+                    _formulaVar('Volume de base', '$baseCount transactions (30 derniers jours)'),
+                    _formulaVar('Taux de croissance', '${_volumePct >= 0 ? '+' : ''}${_volumePct.toStringAsFixed(0)} %'),
+                  ],
+                  result: 'Volume simulé = $baseCount × (1 + ${_volumePct.toStringAsFixed(0)}/100) ≈ $simCount transactions',
+                ),
+                const SizedBox(height: 16),
+                _formulaSection(
+                  '2. Panier moyen simulé',
+                  'Panier moyen simulé = Panier moyen de base + variation',
+                  [
+                    _formulaVar('Panier moyen de base', '${baseAvg.toStringAsFixed(2)} DZD'),
+                    _formulaVar('Variation du panier', '${_ticketDelta >= 0 ? '+' : ''}${_ticketDelta.toStringAsFixed(0)} DZD'),
+                  ],
+                  result: 'Panier moyen simulé = ${baseAvg.toStringAsFixed(2)} + ${_ticketDelta.toStringAsFixed(0)} = ${simAvg.toStringAsFixed(2)} DZD',
+                ),
+                const SizedBox(height: 16),
+                _formulaSection(
+                  '3. Chiffre d\'affaires simulé',
+                  'CA simulé = Volume simulé × Panier moyen simulé',
+                  [
+                    _formulaVar('CA de référence (30j)', '${baseRev.toStringAsFixed(2)} DZD'),
+                    _formulaVar('Volume simulé', '$simCount transactions'),
+                    _formulaVar('Panier moyen simulé', '${simAvg.toStringAsFixed(2)} DZD'),
+                  ],
+                  result: 'CA simulé = $simCount × ${simAvg.toStringAsFixed(2)} ≈ ${simRev.toStringAsFixed(2)} DZD',
+                  isHighlighted: true,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Cette simulation est purement indicative. Elle ne modifie aucune transaction réelle et ne prend pas en compte des facteurs comme la saisonnalité, les comportements clients ou les incidents techniques.',
+                          style: TextStyle(fontSize: 11, color: AppColors.ink),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+        ],
+      ),
+    );
+  }
+
+  Widget _formulaSection(String title, String formula, List<Widget> vars, {String? result, bool isHighlighted = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.ink)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(formula, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppColors.primary)),
+        ),
+        const SizedBox(height: 6),
+        ...vars,
+        if (result != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isHighlighted ? AppColors.success.withValues(alpha: 0.08) : AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: isHighlighted ? AppColors.success.withValues(alpha: 0.3) : AppColors.primary.withValues(alpha: 0.2)),
+            ),
+            child: Text('→ $result', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isHighlighted ? AppColors.success : AppColors.primary)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _formulaVar(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          const Text('  • ', style: TextStyle(color: AppColors.muted)),
+          Text('$label : ', style: const TextStyle(fontSize: 12, color: AppColors.slate)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _simResult == null) {
@@ -120,10 +256,20 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
                   ),
                 ],
               ),
-              OutlinedButton.icon(
-                onPressed: _reset,
-                icon: const Icon(Icons.restart_alt, size: 16),
-                label: const Text('Réinitialiser'),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _showFormulaDialog(context, baseKpis),
+                    icon: const Icon(Icons.calculate_outlined, size: 16),
+                    label: const Text('Comprendre le calcul'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _reset,
+                    icon: const Icon(Icons.restart_alt, size: 16),
+                    label: const Text('Réinitialiser'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -214,6 +360,17 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
                     });
                     _onParamsChanged();
                   },
+                ),
+                const SizedBox(height: 8),
+                // Lien vers la popup de formules
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _showFormulaDialog(context, _simResult?['baseline_kpis'] ?? _simResult?['baseline'] ?? {}),
+                    icon: const Icon(Icons.help_outline, size: 15, color: AppColors.primary),
+                    label: const Text('Comprendre le calcul', style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  ),
                 ),
               ],
             ),

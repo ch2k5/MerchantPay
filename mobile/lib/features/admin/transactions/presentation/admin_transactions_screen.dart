@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/file_saver.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/common_widgets.dart';
 
@@ -99,12 +101,29 @@ class _AdminTransactionsScreenState extends ConsumerState<AdminTransactionsScree
       if (_selectedChannel != 'ALL') {
         query['channel'] = _selectedChannel;
       }
-      final res = await client.get('/admin/transactions/export/', queryParameters: query);
-      if (res.statusCode == 200 && mounted) {
+      final res = await client.dio.get<List<int>>(
+        '/admin/transactions/export/',
+        queryParameters: query,
+        options: Options(
+          responseType: ResponseType.bytes,
+        ),
+      );
+      if (res.statusCode == 200 && res.data != null && mounted) {
+        final bytes = res.data!;
+        final mimeType = format == 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+        final extension = format == 'pdf' ? 'pdf' : 'csv';
+        final filename = 'releve_transactions_satim.$extension';
+
+        saveFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType: mimeType,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.success,
-            content: Text("Export $format téléchargé avec succès !"),
+            content: Text("Export $format généré avec succès ! Téléchargement lancé ($filename)."),
           ),
         );
       }

@@ -17,7 +17,9 @@ from apps.transactions.models import Transaction
 
 def export_platform_report_csv(date_from, date_to) -> HttpResponse:
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="rapport_plateforme_satim.csv"'
+    p_from = date_from.strftime("%Y%m%d")
+    p_to = date_to.strftime("%Y%m%d")
+    response["Content-Disposition"] = f'attachment; filename="rapport_plateforme_satim_{p_from}_{p_to}.csv"'
     response.write("\ufeff")
 
     qs = Transaction.objects.filter(transaction_date__range=(date_from, date_to))
@@ -151,7 +153,9 @@ def export_platform_report_pdf(date_from, date_to) -> HttpResponse:
     doc.build(elements)
     buffer.seek(0)
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = 'attachment; filename="rapport_plateforme_satim.pdf"'
+    p_from = date_from.strftime("%Y%m%d")
+    p_to = date_to.strftime("%Y%m%d")
+    response["Content-Disposition"] = f'attachment; filename="rapport_plateforme_satim_{p_from}_{p_to}.pdf"'
     return response
 
 

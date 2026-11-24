@@ -109,6 +109,57 @@ class TestAdminAndClientFixes:
         assert "note" in res_note.data
         assert res_note.data["note"] == "Justificatif d'activité conforme."
 
+        # Verify SATIM note is pushed as a MerchantAlert
+        from apps.alerts.models import MerchantAlert
+        from apps.core.enums import AlertType
+        admin_alert = MerchantAlert.objects.filter(
+            merchant=merchant,
+            type=AlertType.ADMIN_OBSERVATION,
+        ).first()
+        assert admin_alert is not None
+        assert "Justificatif d'activité conforme." in admin_alert.message
+
+    def test_merchant_transaction_decline_and_refund(self, merchant_user):
+        """
+        Verify merchant can decline an accepted transaction and issue refunds.
+        """
+        from apps.transactions.models import Transaction
+        from apps.core.enums import PaymentChannel, TransactionStatus
+        from django.utils import timezone
+
+        merchant = merchant_user.merchant
+        client = APIClient()
+        client.force_authenticate(user=merchant_user)
+
+        # Create an accepted transaction for testing
+        tx = Transaction.objects.create(
+            merchant=merchant,
+            reference="TX-DEC-REF-TEST-001",
+            amount=Decimal("12500.00"),
+            payment_channel=PaymentChannel.CIB,
+            transaction_status=TransactionStatus.ACCEPTED,
+            transaction_date=timezone.now(),
+        )
+
+        # 1. Partial refund test
+        res_refund = client.post(
+            f"/api/v1/merchant/transactions/{tx.transaction_id}/refund/",
+            data={"refund_amount": "5000.00"},
+        )
+        assert res_refund.status_code == status.HTTP_200_OK
+        tx.refresh_from_db()
+        assert tx.refunded_amount == Decimal("5000.00")
+        assert tx.transaction_status in ["Accepted", "ACCEPTED"]
+
+        # 2. Decline test
+        res_decline = client.post(
+            f"/api/v1/merchant/transactions/{tx.transaction_id}/decline/",
+        )
+        assert res_decline.status_code == status.HTTP_200_OK
+        tx.refresh_from_db()
+        assert tx.transaction_status == "Declined"
+        assert tx.rejection_reason == "Refus commerçant"
+
     def test_admin_user_creation_with_role_and_names(self, admin_user):
         """
         Verify admin user creation accepts first_name, last_name, and role from frontend dropdown.

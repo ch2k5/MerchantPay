@@ -621,6 +621,33 @@ class AdminRiskFlagNoteCreateView(APIView):
             text=text,
         )
 
+        # Push note as a MerchantAlert so the merchant can see SATIM observations
+        try:
+            from apps.alerts.models import MerchantAlert
+            from apps.core.enums import AlertSeverity, AlertType
+            from django.utils import timezone as tz
+
+            author_name = request.user.full_name if hasattr(request.user, "full_name") else str(request.user)
+            MerchantAlert.objects.create(
+                merchant=flag.merchant,
+                type=AlertType.ADMIN_OBSERVATION,
+                severity=AlertSeverity.INFO,
+                title=f"Message de l'équipe SATIM concernant votre dossier",
+                message=text,
+                recommendation="Consultez votre espace commerçant ou contactez le support SATIM si nécessaire.",
+                metric_snapshot={
+                    "flag_id": str(flag.id),
+                    "risk_level": flag.risk_level,
+                    "risk_score": flag.risk_score,
+                    "auteur": author_name,
+                },
+                period_start=tz.now(),
+                period_end=tz.now(),
+                dedupe_key=f"ADMIN_OBS_{flag.id}_{note.id}",
+            )
+        except Exception:
+            pass  # Never block note creation if alert push fails
+
         record_audit(
             request=request,
             actor=request.user,

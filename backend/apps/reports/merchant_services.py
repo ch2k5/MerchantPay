@@ -150,13 +150,17 @@ def export_merchant_activity_report_pdf(merchant, date_from, date_to) -> HttpRes
     doc.build(elements)
     buffer.seek(0)
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="rapport_activite_{merchant.merchant_code}.pdf"'
+    p_from = date_from.strftime("%Y%m%d")
+    p_to = date_to.strftime("%Y%m%d")
+    response["Content-Disposition"] = f'attachment; filename="rapport_activite_{merchant.merchant_code}_{p_from}_{p_to}.pdf"'
     return response
 
 
 def export_merchant_activity_report_csv(merchant, date_from, date_to) -> HttpResponse:
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="rapport_activite_{merchant.merchant_code}.csv"'
+    p_from = date_from.strftime("%Y%m%d")
+    p_to = date_to.strftime("%Y%m%d")
+    response["Content-Disposition"] = f'attachment; filename="rapport_activite_{merchant.merchant_code}_{p_from}_{p_to}.csv"'
     response.write("\ufeff")
 
     qs = merchant.transactions.filter(transaction_date__range=(date_from, date_to))
