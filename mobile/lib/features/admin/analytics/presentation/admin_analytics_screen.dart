@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/chart_utils.dart';
 import '../../../../core/utils/file_saver.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/common_widgets.dart';
@@ -286,6 +287,7 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
               height: 280,
               child: LineChart(
                 LineChartData(
+                  lineTouchData: ChartUtils.lineTouchData(items: trends),
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
@@ -462,6 +464,10 @@ class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> wit
                     height: 250,
                     child: BarChart(
                       BarChartData(
+                        barTouchData: ChartUtils.barTouchData(
+                          items: histogram,
+                          formatter: (i, v) => "${v.toInt()} transaction(s)",
+                        ),
                         maxY: histogram.fold(1.0, (m, h) => max(m, (h['count'] ?? 0).toDouble())) * 1.2,
                         gridData: const FlGridData(show: false),
                         borderData: FlBorderData(show: false),

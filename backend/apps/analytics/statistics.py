@@ -5,6 +5,8 @@ and risk correlation data from raw transaction querysets.
 """
 from decimal import Decimal
 import numpy as np
+from django.db.models import Avg, Count
+from django.db.models.functions import TruncHour
 
 
 def compute_statistical_summary(queryset):
@@ -143,23 +145,40 @@ def compute_fraud_statistical_analytics(queryset):
 
     # Risk Score vs Amount scatter points
     scatter_flags = []
-    for f in flags.order_by("-detected_at")[:100]:
-        avg_amt = float(f.merchant.transactions.values_list("amount", flat=True).first() or 0.0)
+    for f in flags.select_related("merchant", "transaction").order_by("-detected_at")[:100]:
+        if f.transaction:
+            amt = float(f.transaction.amount)
+        else:
+            avg_val = f.merchant.transactions.aggregate(a=Avg("amount"))["a"]
+            amt = float(avg_val or 0.0)
+
         scatter_flags.append({
             "id": str(f.id),
             "merchant_name": f.merchant.business_name,
             "risk_score": f.risk_score,
             "risk_level": f.risk_level,
-            "amount": avg_amt,
+            "amount": amt,
             "reasons": f.reasons or [],
             "date": f.detected_at.strftime("%d/%m %H:%M"),
         })
 
-    # Velocity stats (rejected spikes / bursts)
+    # Real velocity stats calculated from actual transaction records
+    from apps.transactions.models import Transaction
+
+    hourly = (
+        Transaction.objects.annotate(hour_bucket=TruncHour("transaction_date"))
+        .values("merchant_id", "hour_bucket")
+        .annotate(hourly_count=Count("transaction_id"))
+    )
+
+    low_vel = sum(1 for x in hourly if x["hourly_count"] < 5)
+    med_vel = sum(1 for x in hourly if 5 <= x["hourly_count"] <= 15)
+    high_vel = sum(1 for x in hourly if x["hourly_count"] > 15)
+
     velocity_stats = [
-        {"label": "Activité normale (< 5 tx/h)", "count": max(flag_count * 8, 30), "is_anomaly": False},
-        {"label": "Vélocité inhabituelle (5 - 15 tx/h)", "count": max(flag_count * 2, 8), "is_anomaly": False},
-        {"label": "Pic critique (> 15 tx/h / Rafale)", "count": max(flag_count, 2), "is_anomaly": True},
+        {"label": "Activité standard (< 5 tx/h)", "count": low_vel, "is_anomaly": False},
+        {"label": "Vélocité soutenue (5 - 15 tx/h)", "count": med_vel, "is_anomaly": False},
+        {"label": "Pic critique (> 15 tx/h / Rafale)", "count": high_vel, "is_anomaly": True},
     ]
 
     return {

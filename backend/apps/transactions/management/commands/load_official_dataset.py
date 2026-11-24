@@ -217,21 +217,49 @@ class Command(BaseCommand):
         ]
 
         tx_objs = []
+        seen_refs = set()
         for r in rows:
-            m_code = r["merchant_id"]
-            merchant = merchant_map[m_code]
-            dt = datetime.strptime(r["transaction_date"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=ALGIERS_TZ).astimezone(dt_timezone.utc)
-            amt = Decimal(r["amount"])
-            st = r["transaction_status"]
-            ch = r["payment_channel"]
-            cat = r["merchant_category"]
+            ref = str(r["transaction_id"]).strip()
+            if not ref or ref in seen_refs:
+                continue
+            seen_refs.add(ref)
+
+            m_code = str(r["merchant_id"]).strip()
+            merchant = merchant_map.get(m_code)
+            if not merchant:
+                continue
+
+            # Robust date parsing
+            raw_dt = str(r["transaction_date"]).strip()
+            parsed_dt = None
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    parsed_dt = datetime.strptime(raw_dt, fmt)
+                    break
+                except ValueError:
+                    pass
+            if not parsed_dt:
+                self.stdout.write(self.style.WARNING(f"Date ignorée car invalide: {raw_dt} pour {ref}"))
+                continue
+
+            dt = parsed_dt.replace(tzinfo=ALGIERS_TZ).astimezone(dt_timezone.utc)
+            amt_raw = str(r["amount"]).strip().replace(",", ".")
+            try:
+                amt = Decimal(amt_raw)
+            except Exception:
+                self.stdout.write(self.style.WARNING(f"Montant ignoré car invalide: {amt_raw} pour {ref}"))
+                continue
+
+            st = str(r["transaction_status"]).strip()
+            ch = str(r["payment_channel"]).strip()
+            cat = str(r["merchant_category"]).strip()
 
             rej = random.choice(rej_pool) if st in ["Declined", "REJECTED"] else None
             ref_amt = amt if st in ["Refunded", "REFUNDED"] else None
 
             tx = Transaction(
                 transaction_id=uuid.uuid4(),
-                reference=r["transaction_id"],
+                reference=ref,
                 merchant=merchant,
                 transaction_date=dt,
                 amount=amt,
@@ -246,7 +274,7 @@ class Command(BaseCommand):
             tx_objs.append(tx)
 
         Transaction.objects.bulk_create(tx_objs)
-        self.stdout.write(self.style.SUCCESS(f"150 transactions insérées avec succès dans la base de données !"))
+        self.stdout.write(self.style.SUCCESS(f"{len(tx_objs)} transactions insérées avec succès dans la base de données !"))
 
         # 4. Génération de dossiers de risque explicatifs pour les anomalies réelles du dataset
         # Dossier 1: Pharmacie Ain Fouara (MER-5506) - Montant très élevé (135 244,71 DZD)

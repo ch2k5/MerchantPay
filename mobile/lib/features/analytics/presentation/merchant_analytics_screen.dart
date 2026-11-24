@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/chart_utils.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/common_widgets.dart';
 
@@ -215,6 +216,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
               height: 280,
               child: LineChart(
                 LineChartData(
+                  lineTouchData: ChartUtils.lineTouchData(items: trends),
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
@@ -292,6 +294,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
                     height: 220,
                     child: BarChart(
                       BarChartData(
+                        barTouchData: ChartUtils.barTouchData(items: channels),
                         gridData: const FlGridData(show: false),
                         borderData: FlBorderData(show: false),
                         titlesData: FlTitlesData(
@@ -382,6 +385,10 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
               height: 260,
               child: BarChart(
                 BarChartData(
+                  barTouchData: ChartUtils.barTouchData(
+                    items: histogram,
+                    formatter: (i, v) => "${v.toInt()} transaction(s)",
+                  ),
                   alignment: BarChartAlignment.spaceAround,
                   maxY: maxHistCount * 1.2,
                   gridData: FlGridData(
@@ -489,6 +496,7 @@ class _MerchantAnalyticsScreenState extends ConsumerState<MerchantAnalyticsScree
               height: 320,
               child: ScatterChart(
                 ScatterChartData(
+                  scatterTouchData: ChartUtils.scatterTouchData(items: scatterPoints),
                   minX: 0,
                   maxX: scatterPoints.length.toDouble(),
                   minY: 0,

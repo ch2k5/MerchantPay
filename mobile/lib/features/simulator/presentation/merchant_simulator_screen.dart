@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/chart_utils.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/common_widgets.dart';
 
@@ -580,6 +581,7 @@ class _MerchantSimulatorScreenState extends ConsumerState<MerchantSimulatorScree
                 ? const Center(child: Text("Aucune projection disponible"))
                 : LineChart(
                     LineChartData(
+                      lineTouchData: ChartUtils.lineTouchData(items: projections),
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,

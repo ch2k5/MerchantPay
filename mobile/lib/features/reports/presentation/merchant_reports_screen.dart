@@ -15,7 +15,7 @@ class MerchantReportsScreen extends ConsumerStatefulWidget {
 class _MerchantReportsScreenState extends ConsumerState<MerchantReportsScreen> {
   String _selectedReport = 'ACTIVITY_SUMMARY';
   String _selectedFormat = 'pdf';
-  String _selectedPreset = '30d';
+  String _selectedPreset = 'all';
   bool _isGenerating = false;
 
   final reports = [
@@ -195,9 +195,11 @@ class _MerchantReportsScreenState extends ConsumerState<MerchantReportsScreen> {
                               initialValue: _selectedPreset,
                               decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
                               items: const [
-                                DropdownMenuItem(value: '7d', child: Text('7 derniers jours (Semaine)')),
+                                DropdownMenuItem(value: 'all', child: Text('Tout le dataset')),
+                                DropdownMenuItem(value: '6m', child: Text('6 derniers mois')),
                                 DropdownMenuItem(value: '30d', child: Text('30 derniers jours (Mois)')),
                                 DropdownMenuItem(value: '90d', child: Text('90 derniers jours (Trimestre)')),
+                                DropdownMenuItem(value: '7d', child: Text('7 derniers jours (Semaine)')),
                                 DropdownMenuItem(value: 'ytd', child: Text('Année en cours (YTD)')),
                               ],
                               onChanged: (v) {

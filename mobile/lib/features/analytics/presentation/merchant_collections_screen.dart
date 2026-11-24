@@ -95,7 +95,7 @@ class _MerchantCollectionsScreenState extends ConsumerState<MerchantCollectionsS
             decoration: BoxDecoration(
               color: AppColors.primaryTint,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [

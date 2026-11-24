@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/chart_utils.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/kpi_card.dart';
@@ -293,6 +294,7 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                   ? const Center(child: Text("Données insuffisantes"))
                   : LineChart(
                       LineChartData(
+                        lineTouchData: ChartUtils.lineTouchData(items: trends),
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
@@ -334,7 +336,7 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                             LineChartBarData(
                               spots: prevSpots,
                               isCurved: true,
-                              color: AppColors.comparison.withOpacity(0.6),
+                              color: AppColors.comparison.withValues(alpha: 0.6),
                               barWidth: 2,
                               isStrokeCapRound: true,
                               dotData: const FlDotData(show: false),
@@ -349,7 +351,7 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                             dotData: const FlDotData(show: false),
                             belowBarData: BarAreaData(
                               show: true,
-                              color: AppColors.primary.withOpacity(0.08),
+                              color: AppColors.primary.withValues(alpha: 0.08),
                             ),
                           ),
                         ],
@@ -403,28 +405,32 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
             const SizedBox(height: 16),
             SizedBox(
               height: 180,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                  sections: [
-                    PieChartSectionData(
-                      value: cibPct,
-                      title: '${cibPct.toStringAsFixed(0)} %',
-                      color: AppColors.cib,
-                      radius: 35,
-                      titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              child: (cibPct == 0 && edaPct == 0)
+                  ? const Center(child: Text("Aucune transaction sur la période"))
+                  : PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
+                        sections: [
+                          if (cibPct > 0)
+                            PieChartSectionData(
+                              value: cibPct,
+                              title: '${cibPct.toStringAsFixed(0)} %',
+                              color: AppColors.cib,
+                              radius: 35,
+                              titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          if (edaPct > 0)
+                            PieChartSectionData(
+                              value: edaPct,
+                              title: '${edaPct.toStringAsFixed(0)} %',
+                              color: AppColors.edahabia,
+                              radius: 35,
+                              titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                        ],
+                      ),
                     ),
-                    PieChartSectionData(
-                      value: edaPct,
-                      title: '${edaPct.toStringAsFixed(0)} %',
-                      color: AppColors.edahabia,
-                      radius: 35,
-                      titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 12),
             Row(
@@ -565,9 +571,9 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: sevColor.withOpacity(0.08),
+                    color: sevColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: sevColor.withOpacity(0.3)),
+                    border: Border.all(color: sevColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     a['title'] ?? '',
